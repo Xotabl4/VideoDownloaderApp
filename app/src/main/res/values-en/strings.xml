@@ -116,7 +116,19 @@
 
     <string name="settings_appearance">Appearance</string>
     <string name="settings_theme">Dark theme</string>
-    <string name="settings_theme_hint">Turn the switch off for the light theme</string>
+    <string name="settings_theme_hint">Color scheme</string>
+    <string name="theme_indigo">Indigo</string>
+    <string name="theme_indigo_desc">calm blue-violet</string>
+    <string name="theme_oled">OLED Night</string>
+    <string name="theme_oled_desc">pure black, emerald accent</string>
+    <string name="theme_midnight">Midnight</string>
+    <string name="theme_midnight_desc">deep blue</string>
+    <string name="theme_graphite">Graphite</string>
+    <string name="theme_graphite_desc">neutral, amber accent</string>
+    <string name="theme_cosmos">Cosmos</string>
+    <string name="theme_cosmos_desc">violet-pink</string>
+    <string name="theme_paper">Paper</string>
+    <string name="theme_paper_desc">light</string>
     <string name="settings_language">Language</string>
     <string name="language_ru">Русский</string>
     <string name="language_en">English</string>

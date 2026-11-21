@@ -7,17 +7,30 @@ import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.xotabl4.ytdlpgui.R
 
 private const val TAG = "Settings"
 
-/** Тема оформления. */
-enum class AppTheme(val storageValue: String) {
-  Dark("dark"),
-  Light("light"),
+/** Цветовые схемы приложения. */
+enum class AppTheme(val storageValue: String, val labelRes: Int, val descriptionRes: Int) {
+  Indigo("indigo", R.string.theme_indigo, R.string.theme_indigo_desc),
+  Oled("oled", R.string.theme_oled, R.string.theme_oled_desc),
+  Midnight("midnight", R.string.theme_midnight, R.string.theme_midnight_desc),
+  Graphite("graphite", R.string.theme_graphite, R.string.theme_graphite_desc),
+  Cosmos("cosmos", R.string.theme_cosmos, R.string.theme_cosmos_desc),
+  Paper("paper", R.string.theme_paper, R.string.theme_paper_desc),
   ;
 
+  /** Светлая схема — только «Бумага», остальные тёмные. */
+  val isDark: Boolean get() = this != Paper
+
   companion object {
-    fun from(value: String?): AppTheme = entries.firstOrNull { it.storageValue == value } ?: Dark
+    fun from(value: String?): AppTheme =
+      when (value) {
+        // Прежнее значение «light» → светлая «Бумага».
+        "light" -> Paper
+        else -> entries.firstOrNull { it.storageValue == value } ?: Indigo
+      }
   }
 }
 
@@ -46,7 +59,7 @@ object SettingsStore {
   private val _autoUpdateYtDlp = MutableStateFlow(false)
   val autoUpdateYtDlp: StateFlow<Boolean> = _autoUpdateYtDlp.asStateFlow()
 
-  private val _theme = MutableStateFlow(AppTheme.Dark)
+  private val _theme = MutableStateFlow(AppTheme.Indigo)
   val theme: StateFlow<AppTheme> = _theme.asStateFlow()
 
   private val _language = MutableStateFlow(AppLanguage.Ru)

@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import org.xotabl4.ytdlpgui.core.AppTheme
 import org.xotabl4.ytdlpgui.core.SettingsStore
 import org.xotabl4.ytdlpgui.core.ShareReceiver
 import org.xotabl4.ytdlpgui.ui.LocalizedContent
@@ -28,7 +27,7 @@ class MainActivity : ComponentActivity() {
     setContent {
       val theme by SettingsStore.theme.collectAsStateWithLifecycle()
       val language by SettingsStore.language.collectAsStateWithLifecycle()
-      val dark = theme == AppTheme.Dark
+      val dark = theme.isDark
 
       // Иконки системных панелей подстраиваются под текущую тему.
       LaunchedEffect(dark) {
@@ -39,7 +38,7 @@ class MainActivity : ComponentActivity() {
       }
 
       LocalizedContent(language) {
-        Theme(darkTheme = dark) {
+        Theme(palette = theme) {
           Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             MainNavigation()
           }

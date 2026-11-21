@@ -3,7 +3,6 @@ package org.xotabl4.ytdlpgui
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -138,22 +137,21 @@ class MainNavigationTest {
 
     rule.onNodeWithText("English").performScrollTo().performClick()
     waitForDisplayed("Appearance")
-    rule.onNodeWithText("Dark theme").assertExists()
+    rule.onNodeWithText("Indigo").assertExists()
 
     rule.onNodeWithText("Русский").performScrollTo().performClick()
     waitForDisplayed("Оформление")
   }
 
   @Test
-  fun themeSwitchTogglesBothWays() {
+  fun paletteButtonsSwitchTheme() {
     goToTab("tab-settings", "Оформление")
 
-    // На экране настроек ровно один переключатель — тема.
-    rule.onNode(isToggleable()).performScrollTo().performClick()
+    rule.onNodeWithText("Бумага").performScrollTo().performClick()
     rule.mainClock.advanceTimeBy(500)
     rule.onNodeWithText("Оформление").assertExists()
 
-    rule.onNode(isToggleable()).performScrollTo().performClick()
+    rule.onNodeWithText("Индиго").performScrollTo().performClick()
     rule.mainClock.advanceTimeBy(500)
     rule.onNodeWithText("Оформление").assertExists()
   }

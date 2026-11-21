@@ -118,7 +118,19 @@
     <!-- Оформление, язык, батарея, лицензия -->
     <string name="settings_appearance">Оформление</string>
     <string name="settings_theme">Тёмная тема</string>
-    <string name="settings_theme_hint">Выключите переключатель для светлой темы</string>
+    <string name="settings_theme_hint">Цветовая схема</string>
+    <string name="theme_indigo">Индиго</string>
+    <string name="theme_indigo_desc">спокойный сине-фиолет</string>
+    <string name="theme_oled">OLED-ночь</string>
+    <string name="theme_oled_desc">чистый чёрный, изумрудный акцент</string>
+    <string name="theme_midnight">Полночь</string>
+    <string name="theme_midnight_desc">глубокий синий</string>
+    <string name="theme_graphite">Графит</string>
+    <string name="theme_graphite_desc">нейтральный, янтарный акцент</string>
+    <string name="theme_cosmos">Космос</string>
+    <string name="theme_cosmos_desc">фиолетово-розовый</string>
+    <string name="theme_paper">Бумага</string>
+    <string name="theme_paper_desc">светлая</string>
     <string name="settings_language">Язык</string>
     <string name="language_ru">Русский</string>
     <string name="language_en">English</string>

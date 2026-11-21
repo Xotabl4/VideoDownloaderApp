@@ -12,8 +12,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,30 +29,35 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -73,6 +86,7 @@ import org.xotabl4.ytdlpgui.core.UpdateState
 import org.xotabl4.ytdlpgui.core.YtDlp
 import org.xotabl4.ytdlpgui.core.YtDlpState
 import org.xotabl4.ytdlpgui.ui.theme.SuccessGreen
+import org.xotabl4.ytdlpgui.ui.theme.paletteColors
 
 /** Экран настроек: карточки-секции с параметрами и инструментами. */
 @Composable
@@ -177,15 +191,22 @@ fun SettingsScreen(
         text = stringResource(R.string.settings_parallel_value, parallel),
         style = MaterialTheme.typography.bodyMedium,
       )
-      Slider(
-        value = PARALLEL_DOWNLOAD_OPTIONS.indexOf(parallel).coerceAtLeast(0).toFloat(),
-        onValueChange = { position ->
-          SettingsStore.setParallelDownloads(context, PARALLEL_DOWNLOAD_OPTIONS[position.roundToInt()])
-        },
-        valueRange = 0f..(PARALLEL_DOWNLOAD_OPTIONS.size - 1).toFloat(),
-        steps = PARALLEL_DOWNLOAD_OPTIONS.size - 2,
+      StepSlider(
+        options = PARALLEL_DOWNLOAD_OPTIONS,
+        valueIndex = PARALLEL_DOWNLOAD_OPTIONS.indexOf(parallel).coerceAtLeast(0),
+        onSelect = { SettingsStore.setParallelDownloads(context, it) },
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
       )
+      // Подписи трёх положений: 2 / 5 / 10.
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        PARALLEL_DOWNLOAD_OPTIONS.forEach { option ->
+          Text(
+            text = option.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
       Text(
         text = stringResource(R.string.settings_parallel_hint),
         style = MaterialTheme.typography.labelSmall,
@@ -194,24 +215,31 @@ fun SettingsScreen(
     }
 
     SettingsCard(title = stringResource(R.string.settings_appearance)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = stringResource(R.string.settings_theme),
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.weight(1f),
-        )
-        Switch(
-          checked = theme == AppTheme.Dark,
-          onCheckedChange = { dark ->
-            SettingsStore.setTheme(context, if (dark) AppTheme.Dark else AppTheme.Light)
-          },
-        )
-      }
       Text(
         text = stringResource(R.string.settings_theme_hint),
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      Spacer(modifier = Modifier.height(10.dp))
+      // Палитры в два столбца: цветное превью + название + описание.
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppTheme.entries.chunked(2).forEach { rowThemes ->
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            rowThemes.forEach { palette ->
+              PaletteButton(
+                palette = palette,
+                selected = palette == theme,
+                onClick = { SettingsStore.setTheme(context, palette) },
+                modifier = Modifier.weight(1f),
+              )
+            }
+            if (rowThemes.size == 1) Spacer(modifier = Modifier.weight(1f))
+          }
+        }
+      }
       Spacer(modifier = Modifier.height(12.dp))
       Text(text = stringResource(R.string.settings_language), style = MaterialTheme.typography.bodyMedium)
       Row(
@@ -355,6 +383,142 @@ fun SettingsScreen(
     Spacer(modifier = Modifier.height(16.dp))
   }
 }
+
+/** Кнопка палитры: цветное превью, название, описание и подсветка выбранной. */
+@Composable
+private fun PaletteButton(
+  palette: AppTheme,
+  selected: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val colors = paletteColors(palette)
+  val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+  val borderWidth = if (selected) 2.dp else 1.dp
+
+  Column(
+    modifier =
+      modifier
+        .clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surface)
+        .border(borderWidth, borderColor, RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick)
+        .padding(10.dp),
+  ) {
+    Box(modifier = Modifier.size(36.dp)) {
+      // Фон палитры с тонкой рамкой, поверх — акцент.
+      Box(
+        Modifier.size(36.dp).clip(CircleShape).background(colors.background)
+          .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+      )
+      Box(
+        Modifier.align(Alignment.Center).size(20.dp).clip(CircleShape).background(colors.primary)
+      )
+      if (selected) {
+        Box(
+          Modifier.align(Alignment.BottomEnd).size(16.dp).clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            text = "✓",
+            color = MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.labelSmall,
+          )
+        }
+      }
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+      text = stringResource(palette.labelRes),
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurface,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+    Text(
+      text = stringResource(palette.descriptionRes),
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+    )
+  }
+}
+
+/** Ползунок на несколько положений: сплошная полоса и шарик, который тянет заливку. */
+@Composable
+private fun StepSlider(
+  options: List<Int>,
+  valueIndex: Int,
+  onSelect: (Int) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val thumbDiameter = 24.dp
+  val trackHeight = 6.dp
+  val activeColor = MaterialTheme.colorScheme.primary
+  val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
+
+  val maxIndex = (options.size - 1).coerceAtLeast(0)
+  var widthPx by remember { mutableIntStateOf(0) }
+
+  BoxWithConstraints(
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .height(thumbDiameter)
+        .onSizeChanged { widthPx = it.width }
+        .pointerInput(maxIndex, options.size) {
+          awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            fun selectAt(x: Float) {
+              val w = widthPx
+              if (w <= 0 || maxIndex == 0) return
+              val index = (x / w * maxIndex).roundToInt().coerceIn(0, maxIndex)
+              onSelect(options[index])
+            }
+            selectAt(down.position.x)
+            down.consume()
+            drag(down.id) { change ->
+              selectAt(change.position.x)
+              change.consume()
+            }
+          }
+        },
+    contentAlignment = Alignment.CenterStart,
+  ) {
+    val fraction = if (maxIndex == 0) 0f else valueIndex.toFloat() / maxIndex
+
+    // Полоса целиком — неактивная часть.
+    Box(
+      Modifier
+        .fillMaxWidth()
+        .height(trackHeight)
+        .clip(RoundedCornerShape(trackHeight / 2))
+        .background(inactiveColor)
+    )
+    // Заливка активной части.
+    if (fraction > 0f) {
+      Box(
+        Modifier
+          .fillMaxWidth(fraction)
+          .height(trackHeight)
+          .clip(RoundedCornerShape(trackHeight / 2))
+          .background(activeColor)
+      )
+    }
+    // Шарик на границе заливки.
+    Box(
+      modifier =
+        Modifier.offset(x = (maxWidth - thumbDiameter) * fraction)
+          .size(thumbDiameter)
+          .clip(CircleShape)
+          .background(activeColor),
+      contentAlignment = Alignment.Center,
+    ) {}
+  }
+}
+
 
 /** Пакет уже в «белом списке» оптимизации батареи? */
 private fun isIgnoringBatteryOptimizations(context: Context): Boolean =
