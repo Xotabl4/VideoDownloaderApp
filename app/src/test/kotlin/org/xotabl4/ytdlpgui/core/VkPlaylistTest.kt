@@ -6,13 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Разбор ссылок на плейлисты VK ([VkPlaylist.parse]) — по ним приложение добирает
- * название подборки и число видео, которых нет в `yt-dlp -J` (там `title=null`).
- *
- * Сам запрос `al_video.php` в JVM-тестах не проверить (нужна сеть и `org.json`),
- * он проверяется на устройстве.
- */
+/** Тесты ссылок на плейлисты VK. */
 class VkPlaylistTest {
   @Test
   fun `classic vk playlist url`() {

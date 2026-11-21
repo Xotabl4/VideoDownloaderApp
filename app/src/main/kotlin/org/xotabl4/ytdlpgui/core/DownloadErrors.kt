@@ -3,15 +3,9 @@ package org.xotabl4.ytdlpgui.core
 import android.content.Context
 import org.xotabl4.ytdlpgui.R
 
-/**
- * Перевод технических ошибок yt-dlp в понятные фразы на языке приложения.
- *
- * yt-dlp отдаёт строки вида `ERROR: [youtube] xyz: Sign in to confirm your age`,
- * `Unsupported URL` или `[Errno 103] ...`. Показывать их как есть бессмысленно,
- * поэтому здесь они раскладываются по категориям.
- */
+/** Переводит ошибки yt-dlp в понятные фразы. */
 object DownloadErrors {
-  /** Домены, где скачивание невозможно (DRM/закрытый сервис) — отвечаем, не запуская yt-dlp. */
+  /** Сайты, где скачивание запрещено (DRM). */
   private data class SiteRule(val host: String, val messageRes: Int)
 
   private val siteRules =
@@ -28,10 +22,7 @@ object DownloadErrors {
       SiteRule("spotify.com", R.string.error_site_drm),
     )
 
-  /**
-   * Если сайт заведомо не поддерживает скачивание — готовый текст причины.
-   * Возвращает `null`, когда можно пробовать yt-dlp.
-   */
+  /** Готовый текст причины, если сайт заведомо не поддерживается. */
   fun unsupportedSite(context: Context, url: String): String? {
     val host = hostOf(url) ?: return null
     val rule =
@@ -39,11 +30,7 @@ object DownloadErrors {
     return context.getString(rule.messageRes)
   }
 
-  /**
-   * То же, что [humanize], но с учётом конкретного сайта: у PornHub 403 почти всегда означает
-   * возрастной гейт 18+, а у VK `TypeError` из экстрактора плейлистов — ограничение доступа
-   * к подборке, а не «неизвестная ошибка».
-   */
+  /** Уточняет ошибку под конкретный сайт. */
   fun forUrl(context: Context, url: String, raw: String): String {
     val host = hostOf(url).orEmpty()
     val isPornHub = host == "pornhub.com" || host.endsWith(".pornhub.com")
@@ -64,15 +51,11 @@ object DownloadErrors {
       host == "vkvideo.ru" ||
       host.endsWith(".vkvideo.ru")
 
-  /**
-   * Как ломается экстрактор `vk:uservideos`, если VK не отдал список видео:
-   * `string indices must be integers` (блокировка/пустой ответ), `'total'`
-   * (в ответе нет нужных полей), `cursor data` (страница без данных).
-   */
+  /** Как падает yt-dlp, когда VK не отдал список видео. */
   private val VK_PLAYLIST_BREAKAGES =
     listOf("string indices must be integers", "'total'", "extract cursor data")
 
-  /** Сырой текст ошибки yt-dlp/исключения → понятная фраза на языке приложения. */
+  /** Сырой текст ошибки → понятная фраза. */
   fun humanize(context: Context, raw: String): String {
     val text = cleanUp(raw)
     if (text.isEmpty()) return context.getString(R.string.error_unknown, "—")
@@ -89,8 +72,8 @@ object DownloadErrors {
 
       lower.contains("private video") || lower.contains("this video is private") -> res(R.string.error_private)
 
-      // YouTube на «грязных» VPN-адресах требует подтвердить, что запрос не от бота:
-      // это не вход в аккаунт, а именно блокировка сервера — лечится сменой сервера VPN.
+      // YouTube на части VPN-серверов просит подтвердить, что запрос не от бота.
+      // Помогает смена сервера VPN.
       lower.contains("not a bot") -> res(R.string.error_youtube_bot)
 
       (lower.contains("age") && (lower.contains("restrict") || lower.contains("confirm"))) ||
@@ -147,14 +130,13 @@ object DownloadErrors {
     }
   }
 
-  /** `ERROR: [youtube] xyz: текст` → `текст`; WARNING/INFO-строки не считаем ошибкой. */
+  /** Оставляет текст ошибки без `ERROR:` и предупреждений. */
   fun cleanUp(raw: String): String {
     val lines = raw.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
     if (lines.isEmpty()) return ""
     val errorLine = lines.firstOrNull { it.startsWith("ERROR:", ignoreCase = true) }
     if (errorLine != null) return errorLine.substringAfter("ERROR:").trim()
-    // Только предупреждения (например, «2 unavailable videos are hidden») — берём последнюю
-    // содержательную строку, но без служебного префикса.
+    // Одни предупреждения — берём последнюю строку без префикса.
     val meaningful = lines.lastOrNull { !it.startsWith("WARNING", ignoreCase = true) } ?: lines.last()
     return meaningful.removePrefix("WARNING:").trim()
   }

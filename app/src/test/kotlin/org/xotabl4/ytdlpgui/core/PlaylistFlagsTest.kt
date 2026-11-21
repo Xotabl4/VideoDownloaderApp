@@ -4,11 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Флаг плейлиста в истории и задачах: без него «Повторить» качало плейлист как одно видео.
- *
- * encode и decode чистые, поэтому проверяются в JVM-тестах.
- */
+/** Тесты флага плейлиста. */
 class PlaylistFlagsTest {
   @Test
   fun `history entry keeps playlist flags`() {

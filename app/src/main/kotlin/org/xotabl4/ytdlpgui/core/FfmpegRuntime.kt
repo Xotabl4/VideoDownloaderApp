@@ -10,38 +10,17 @@ import java.io.InputStream
 private const val TAG = "FfmpegRuntime"
 
 /**
- * Менеджер ffmpeg, который можно обновлять.
+ * Устанавливает и обновляет ffmpeg.
  *
- * Раскладка в `filesDir/ffmpeg`:
- * ```
- * <версия>/real/ffmpeg, real/ffprobe   настоящие бинарники (ELF из репозитория Termux)
- * <версия>/lib/ (so-файлы) + симлинки soname  библиотеки этой сборки
- * <версия>/bin/ffmpeg, bin/ffprobe     симлинки на nativeLibraryDir/libffmpeg.so
- * current -> <версия>                  что используем сейчас
- * ```
- *
- * Android 10+ не разрешает запуск файлов из каталога данных, но разрешает
- * `nativeLibraryDir` и `/system/bin/linker64`. Поэтому `bin/ffmpeg` это симлинк на
- * нативный лаунчер [LAUNCHER] из APK (`native/fflaunch.c`, имя `libffmpeg.so` задаёт
- * youtubedl-android), а лаунчер запускает `linker64 <версия>/real/ffmpeg` с очищенным
- * окружением. Для yt-dlp это обычный ffmpeg, поэтому обновление сводится к распаковке
- * новой версии и переключению симлинка `current`.
- *
- * Все правки ELF (RUNPATH → `$ORIGIN`, `libc++_shared.so` → [ElfPatch.LIBCXX_RENAMED])
- * выполняются здесь, на этапе установки, поэтому одинаково действуют и для вшитой
- * сборки, и для скачанной апдейтером.
+ * Бинарники лежат в files/ffmpeg/<версия>, bin/ffmpeg это симлинк на лаунчер
+ * из APK, а `current` показывает активную версию.
  */
 object FfmpegRuntime {
   private const val ASSET_ROOT = "ffmpeg9"
   private const val LAUNCHER = "libffmpeg.so"
   private const val ROOT_DIR = "ffmpeg"
 
-  /**
-   * Версия раскладки каталога `files/ffmpeg/<версия>`. Файл-маркер [LAYOUT_FILE] пишется при
-   * каждой установке; если его нет или номер отличается — установка переделывается целиком.
-   * Так обновление APK само чинит уже развёрнутые версии: 2 — libc++ переименована
-   * в [ElfPatch.LIBCXX_RENAMED], 1 (без маркера) — старое имя `libc++_shared.so`.
-   */
+  /** Версия раскладки папки: при смене номера установка переделывается целиком. */
   private const val LAYOUT_VERSION = "2"
   private const val LAYOUT_FILE = "layout"
 
@@ -71,15 +50,7 @@ object FfmpegRuntime {
   fun isReady(context: Context): Boolean =
     File(binDir(context), "ffmpeg").exists() && currentVersion(context) != null
 
-  /**
-   * Разворачивает вшитую сборку, если рабочей версии ещё нет (или [force] — переустановка
-   * именно вшитой версии). Возвращает версию, которая стала текущей.
-   *
-   * Уже установленная версия сохраняется, даже если она не равна вшитой: иначе «Обновить
-   * ffmpeg» (версия из Termux) откатывалось бы обратно при следующем запуске приложения.
-   * Если у установленной версии старая раскладка (нет маркера [LAYOUT_FILE]) — ставим вшитую:
-   * переделать чужую сборку нечем, а старая раскладка ломает склейку.
-   */
+  /** Ставит вшитую сборку, если рабочей версии нет или просят переустановку. */
   fun ensureInstalled(context: Context, force: Boolean = false): String {
     val bundled = bundledVersion(context)
     val root = rootDir(context)
@@ -102,9 +73,7 @@ object FfmpegRuntime {
         }
         return installed
       }
-      // После обновления APK (`install -r`) nativeLibraryDir меняется, и симлинки
-      // bin/ffmpeg → nativeLibraryDir/libffmpeg.so «повисают». Пересоздаём только их,
-      // реальные бинарники и lib/* не трогаем.
+      // После обновления APK путь к библиотекам меняется, симлинки создаём заново.
       Log.i(TAG, "ffmpeg $installed: пересоздаю симлинки лаунчера (сменился nativeLibraryDir)")
       check(launcher.exists()) { "нет $LAUNCHER в ${launcher.parent}" }
       bin.mkdirs()
@@ -171,10 +140,7 @@ object FfmpegRuntime {
   fun installedVersion(context: Context): String? =
     currentVersion(context)?.takeIf { File(rootDir(context), "$it/real/ffmpeg").exists() }
 
-  /**
-   * Ставит скачанную сборку: [realDir] содержит `ffmpeg`/`ffprobe`, [libDir] — `.so` и
-   * [sonames] — пары «soname → реальный файл» (симлинки создаём сами).
-   */
+  /** Ставит скачанную сборку: бинарники, библиотеки, симлинки. */
   fun installDownloaded(
     context: Context,
     version: String,
@@ -263,11 +229,7 @@ object FfmpegRuntime {
       .onFailure { Log.w(TAG, "маркер раскладки не записан: ${it.message}") }
   }
 
-  /**
-   * Записывает ELF в [target], применяя [ElfPatch]: RUNPATH Termux → [$runpath] и
-   * `libc++_shared.so` → [ElfPatch.LIBCXX_RENAMED]. Обе замены «на месте», размер файла
-   * не меняется; хвост исходной строки забивается нулями (строка всё равно NUL-терминирована).
-   */
+  /** Записывает файл, попутно правя пути внутри ELF. */
   private fun writePatched(input: InputStream, target: File, runpath: String) {
     val bytes = input.readBytes()
     if (!ElfPatch.replaceCString(bytes, ElfPatch.TERMUX_RUNPATH, runpath)) {

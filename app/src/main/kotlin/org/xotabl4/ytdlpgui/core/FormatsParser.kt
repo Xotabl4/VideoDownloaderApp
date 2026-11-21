@@ -175,12 +175,7 @@ object FormatsParser {
     )
   }
 
-  /**
-   * Убирает повторы: одна и та же дорожка приходит под разными `format_id`
-   * (`default-*`, `m3u8-*`, `dash_sep-*`, `hls-*`) с разницей в битрейте.
-   * Ключ — кодек, высота, fps и HDR, у аудио вместо высоты битрейт.
-   * Из группы остаётся поток с большим битрейтом.
-   */
+  /** Убирает повторы одинаковых дорожек. */
   private fun dedupe(raw: List<RawFormat>): List<RawFormat> {
     val seen = LinkedHashMap<String, RawFormat>()
     for (f in raw) {

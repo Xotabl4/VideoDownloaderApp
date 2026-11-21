@@ -20,16 +20,9 @@ import org.junit.Test
 import org.xotabl4.ytdlpgui.core.SettingsStore
 
 /**
- * Инструментальные UI-тесты основного каркаса (Nav3 + Pager).
+ * UI-тесты навигации.
  *
- * Особенности устройства (MIUI, Android 15): запуск Activity из процесса инструментации
- * блокируется системой («Abort background activity starts»), поэтому Activity стартуем
- * shell-командой `am start`, а `createEmptyComposeRule()` находит уже существующую композицию
- * (тест и приложение живут в одном процессе).
- *
- * На экране настроек подпись кнопки бесконечно «плавает», поэтому авто-часы отключены
- * (`mainClock.autoAdvance = false`), а кадры двигаются вручную — см. [waitForTag]/[waitForText].
- * Настройки возвращаются к «тёмная тема + русский» до и после каждого теста.
+ * Activity запускается через am start: MIUI блокирует запуск из теста.
  */
 class MainNavigationTest {
 

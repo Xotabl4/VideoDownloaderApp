@@ -28,12 +28,7 @@ sealed interface UpdateState {
   data class Failed(val message: String) : UpdateState
 }
 
-/**
- * Проверка новой версии по GitHub Releases.
- *
- * Запрос идёт к api.github.com без токена: лимит 60 обращений в час на адрес, одной
- * фоновой проверки в сутки и ручных нажатий это не касается.
- */
+/** Проверка новых версий по GitHub Releases. */
 object AppUpdate {
   private const val TAG = "AppUpdate"
   private const val PREFS = "app_update"

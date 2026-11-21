@@ -31,11 +31,7 @@ private const val NO_CONVERSION = "Оригинал"
 /** Подпапка плейлиста, если название взять неоткуда. */
 private const val DEFAULT_PLAYLIST_FOLDER = "Playlist"
 
-/**
- * Сколько загрузок идёт одновременно. Каждая загрузка это отдельный процесс Python
- * и, возможно, склейка ffmpeg, поэтому на телефоне хватает двух; остальные ждут
- * свободного слота и показываются как «В очереди…».
- */
+/** Сколько загрузок идёт одновременно. */
 const val MAX_PARALLEL_DOWNLOADS = 2
 
 /** Цели конвертации, которые выполняются через `-x --audio-format`. */
@@ -49,7 +45,7 @@ sealed interface DownloadState {
     val percent: Float,
     val etaSeconds: Long?,
     val line: String,
-    /** Название ролика — показываем в уведомлении и карточке загрузки. */
+    /** Название ролика для уведомления. */
     val title: String = "",
   ) : DownloadState
 
@@ -58,7 +54,7 @@ sealed interface DownloadState {
     val filePath: String,
     val uri: String,
     val mimeType: String,
-    /** `true` — сохранён плейлист (в подпапку), а не отдельный файл. */
+    /** Сохранён плейлист в подпапку. */
     val isPlaylist: Boolean = false,
   ) : DownloadState
 
@@ -67,16 +63,16 @@ sealed interface DownloadState {
   data object Canceled : DownloadState
 }
 
-/** Загрузка, которая идёт прямо сейчас (для карточек «Загрузок» и уведомлений). */
+/** Загрузка, которая идёт сейчас. */
 data class RunningDownload(
   val taskId: String,
   val title: String,
-  /** 0–100. */
+  /** Прогресс в процентах. */
   val percent: Int,
   val line: String,
 )
 
-/** Параметры одной загрузки: своя корутина, свой pid yt-dlp, свой каталог в кэше. */
+/** Данные одной загрузки. */
 private class Session(
   val id: String,
   val url: String,
@@ -91,18 +87,15 @@ private class Session(
   @Volatile var job: Job? = null
   @Volatile var pid: String? = null
 
-  /** Подпапка плейлиста: название от площадки, иначе — название карточки. */
+  /** Папка плейлиста. */
   val folder: String = playlistTitle.ifBlank { title }.ifBlank { DEFAULT_PLAYLIST_FOLDER }
 }
 
 /**
- * Порт `downloader.download_video()`, теперь с параллельными загрузками.
+ * Загрузки, несколько задач параллельно.
  *
- * Десктоп запускал `yt-dlp -f <id> -o <шаблон>` через `Popen` и парсил проценты из stdout;
- * здесь то же делает `YoutubeDL.execute(request, pid, callback)`, а `destroyProcessById(pid)`
- * работает как кнопка «Отмена». Каждая загрузка живёт в своей [Session]: свой процесс, свой
- * временный каталог `cache/downloads/<taskId>`, своё состояние. Одновременно идут не больше
- * [MAX_PARALLEL_DOWNLOADS] задач, остальные ждут слот (см. `Semaphore`).
+ * У каждой свой процесс yt-dlp, своя папка в кэше и своё состояние.
+ * Одновременно идут не больше [MAX_PARALLEL_DOWNLOADS], остальные ждут.
  */
 object DownloadManager {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -111,23 +104,20 @@ object DownloadManager {
   private val sessions = ConcurrentHashMap<String, Session>()
 
   private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
-  /** Состояния всех задач — по ним сервис рисует по уведомлению на каждую загрузку. */
+  /** Состояния всех задач. */
   val states: StateFlow<Map<String, DownloadState>> = _states.asStateFlow()
 
   private val _running = MutableStateFlow<List<RunningDownload>>(emptyList())
-  /** Загрузки, которые идут прямо сейчас (их может быть несколько). */
+  /** Загрузки, которые идут сейчас. */
   val running: StateFlow<List<RunningDownload>> = _running.asStateFlow()
 
   private val _state = MutableStateFlow<DownloadState>(DownloadState.Idle)
-  /** Состояние «главной» загрузки — последней запущенной (прежний контракт для главного экрана). */
+  /** Состояние главной загрузки, то есть последней запущенной. */
   val state: StateFlow<DownloadState> = _state.asStateFlow()
 
   private val _activeUrl = MutableStateFlow("")
 
-  /**
-   * Ссылка текущей/последней загрузки. Главный экран сравнивает её с содержимым поля:
-   * результат показываем, только пока он относится к той же ссылке.
-   */
+  /** Ссылка текущей загрузки: по ней главный экран решает, показывать результат. */
   val activeUrl: StateFlow<String> = _activeUrl.asStateFlow()
 
   @Volatile private var primaryId: String? = null
@@ -155,9 +145,8 @@ object DownloadManager {
     /** Название плейлиста: файлы складываем в подпапку с этим именем. */
     playlistTitle: String = "",
     /**
-     * Ссылка ведёт на плейлист. Отдельный флаг нужен потому, что не все площадки отдают
-     * название подборки (VK отдаёт `title=null`): без него плейлист качался бы как одно
-     * видео — в корень «Загрузок» и без подпапки.
+     * Ссылка ведёт на плейлист. Название есть не у всех площадок,
+     * поэтому нужен отдельный флаг.
      */
     isPlaylist: Boolean = false,
   ): String? {
@@ -283,7 +272,7 @@ object DownloadManager {
     val isPlaylist = session.isPlaylist
     val playlistFolder = session.folder
     val dir = DownloadStorage.tempDir(context, taskId)
-    // Перед плейлистом чистим его каталог: fallback публикации берёт из него все готовые файлы.
+    // Перед плейлистом чистим папку: из неё берутся готовые файлы.
     if (isPlaylist) DownloadStorage.clearTemp(context, taskId)
 
     val pid = UUID.randomUUID().toString()
@@ -291,8 +280,7 @@ object DownloadManager {
     Log.i(TAG, "run: task=$taskId, format=$formatId, dir=$dir, pid=$pid")
     publish(taskId, DownloadState.Running(0f, null, context.getString(R.string.download_preparing), title))
 
-    // Канал публикации объявлен до `try`: закрыть его нужно и при ошибке, и при отмене,
-    // иначе корутина-публикатор останется висеть на незакрытом канале.
+    // Канал закрываем в любом случае, иначе корутина-публикатор останется висеть.
     val publishQueue = Channel<String>(Channel.UNLIMITED)
     try {
       // PornHub: ссылку на нужное качество берём из скрытого WebView (см. PhHarvest).
@@ -309,12 +297,12 @@ object DownloadManager {
 
       val request =
         YoutubeDLRequest(effectiveUrl).apply {
-          // Impersonation (Chrome): тот же отпечаток, что при разборе ссылки.
+          // Impersonation: тот же отпечаток, что при разборе ссылки.
           if (CurlImpersonate.wantedFor(url) && CurlImpersonate.ensure(context)) {
             addOption("--impersonate", "chrome")
           }
-          // Плейлист: у части роликов может не быть выбранного формата — нужен fallback.
-          // PornHub: качаем прямую ссылку на выбранное качество целиком.
+          // Плейлист: у части роликов может не быть формата, нужен запасной.
+          // PornHub: качаем прямую ссылку на выбранное качество.
           addOption(
             "-f",
             when {
@@ -323,7 +311,7 @@ object DownloadManager {
               else -> formatId
             },
           )
-          // PornHub: cookies/UA + Referer/Origin, иначе фрагменты HLS отдают 404.
+          // PornHub: cookies, User-Agent, Referer и Origin, иначе части видео отдают 404.
           if (PhCookies.isPornHub(url)) {
             addOption("--cookies", PhCookies.file(context).absolutePath)
             addOption("--user-agent", PhCookies.USER_AGENT)
@@ -331,8 +319,7 @@ object DownloadManager {
             addOption("--add-header", "Origin: https://www.pornhub.com")
           }
           applyConversion(mergeFormat)
-          // PornHub качается прямой ссылкой CDN: имя файла берём из названия видео,
-          // иначе yt-dlp подставит мусорное имя из URL.
+          // PornHub: имя файла из названия видео, иначе из ссылки получится мусор.
           val outputName =
             if (isPornHub) {
               val safe = DownloadStorage.sanitize(title.ifBlank { "PornHub" })
@@ -342,41 +329,38 @@ object DownloadManager {
             }
           addOption("-o", File(dir, outputName).absolutePath)
           addOption("--no-mtime")
-          // Прогресс/итог печатаются построчно — так их проще разбирать (и библиотеке, и нам).
+          // Прогресс печатаем построчно, так проще разбирать.
           addOption("--newline")
-          // Итоговый путь печатается в stdout — проще, чем угадывать имя файла.
-          // ВАЖНО: `--print` включает `--quiet`, из-за чего пропадают строки прогресса
-          // и колбэк `execute(..., callback)` не срабатывает — возвращаем вывод сами.
+          // Путь печатаем в stdout. --print включает --quiet и глушит прогресс,
+          // поэтому ниже возвращаем вывод обратно.
           if (isPlaylist) {
-            // Для плейлиста печатаем пары «название плейлиста<TAB>путь» — по ним делаем подпапку.
+            // Для плейлиста печатаем «название<TAB>путь».
             addOption("--print", "after_move:%(playlist_title|)s\t%(filepath)s")
-            // Один битый ролик не должен обрывать весь плейлист.
+            // Один битый ролик не должен обрывать плейлист.
             addOption("--ignore-errors")
-            // Начинаем качать, не дожидаясь разбора всех страниц плейлиста (длинные списки).
+            // Не ждём разбора всех страниц плейлиста.
             addOption("--lazy-playlist")
-            // Если битых подряд слишком много — прекращаем, а не долбим сервис бесконечно.
+            // Слишком много ошибок подряд — останавливаемся.
             addOption("--skip-playlist-after-errors", "5")
           } else {
             addOption("--print", "after_move:filepath")
           }
           addOption("--no-quiet")
           addOption("--progress")
-          // Свой (обновляемый) ffmpeg: библиотека больше не поставляет его, а 7.1.1-подсказку
-          // из AAR мы убрали — без этой строки yt-dlp не склеит потоки и не сделает mp3.
+          // Свой ffmpeg: без него не склеить потоки и не сделать mp3.
           if (FfmpegRuntime.isReady(context)) {
             addOption("--ffmpeg-location", FfmpegRuntime.binDir(context).absolutePath)
           }
         }
 
-      // Плейлист: каждый готовый файл публикуем сразу, а не в конце — иначе при 100+ роликах
-      // в папке ничего не появляется до последнего ролика, а отмена теряет всё скачанное.
+      // Файлы плейлиста публикуем по одному, иначе при отмене теряется всё скачанное.
       val subDir = if (isPlaylist) playlistFolder else null
       val queuedPaths = ConcurrentHashMap.newKeySet<String>()
       val publishedPaths = ConcurrentHashMap.newKeySet<String>()
       val publishedCount = AtomicInteger()
       val firstSaved = AtomicReference<SavedFile?>(null)
 
-      /** Публикует готовый файл в «Загрузки», пишет историю и освобождает кэш. */
+      /** Публикует файл в «Загрузки», пишет историю, чистит кэш. */
       suspend fun publishOne(path: String): SavedFile? =
         runCatching {
             val file = File(path)
@@ -409,18 +393,17 @@ object DownloadManager {
             publishedCount.incrementAndGet()
           }
 
-      // Публикация идёт в отдельной корутине: колбэк yt-dlp нельзя блокировать.
+      // Публикация в отдельной корутине: колбэк yt-dlp нельзя задерживать.
       val publisher =
         scope.launch(Dispatchers.IO) {
           for (path in publishQueue) publishOne(path)
         }
 
-      // Плейлист с приватными/удалёнными роликами: yt-dlp качает доступные, но завершает
-      // процесс с ненулевым кодом, и библиотека бросает исключение. Не теряем уже скачанное.
+      // Плейлист с приватными роликами завершается ошибкой, но скачанное не теряем.
       val response =
         try {
           YoutubeDL.getInstance().execute(request, pid) { libPercent, libEta, line ->
-            // Колбэк библиотеки не всегда отдаёт процент — тогда считаем сами из строки yt-dlp.
+            // Колбэк не всегда отдаёт процент, тогда считаем сами по строке.
             val percent = libPercent.takeIf { it > 0f }?.div(100f) ?: parsePercent(line) ?: 0f
             val eta = libEta.takeIf { it > 0 } ?: parseEtaSeconds(line)
             DownloadTasks.progress(taskId, (percent * 100).toInt())
@@ -434,7 +417,7 @@ object DownloadManager {
               ),
             )
             if (isPlaylist) {
-              // `--print after_move:<плейлист>\t<путь>`: файл финальный — можно публиковать.
+              // `--print after_move:<плейлист>\t<путь>`: файл готов, можно публиковать.
               val printed = line.substringAfter('\t', "").trim()
               if (printed.startsWith("/") && File(printed).isFile && queuedPaths.add(printed)) {
                 publishQueue.trySend(printed)
@@ -444,13 +427,13 @@ object DownloadManager {
         } catch (e: YoutubeDL.CanceledException) {
           throw e
         } catch (e: Exception) {
-          // Уже опубликованные файлы не теряем: показываем успех для того, что успели сохранить.
+          // Опубликованное не теряем: показываем успех для сохранённого.
           if (!isPlaylist || (!hasDownloadedFiles(context, taskId) && publishedCount.get() == 0)) throw e
           Log.w(TAG, "playlist finished with errors: ${e.message?.take(300)}")
           null
         }
 
-      // Процесс завершён: допубликовываем готовое, затем смотрим остаток.
+      // Процесс закончился: публикуем остаток и смотрим, что получилось.
       publishQueue.close()
       publisher.join()
 
@@ -458,9 +441,8 @@ object DownloadManager {
         Log.w(TAG, "yt-dlp stderr: ${response.err.take(3000)}")
       }
 
-      // Пути всех готовых файлов: у плейлиста их несколько, у одиночного видео — один.
-      // ВАЖНО: у плейлиста строка начинается с таба (`\t<путь>`), поэтому режем её
-      // до `trim()`, иначе таб съедается вместе с путём.
+      // Пути готовых файлов. У плейлиста строка начинается с таба, поэтому режем её
+      // до trim(), иначе таб пропадёт вместе с путём.
       val printedPaths =
         response
           ?.out
@@ -470,7 +452,7 @@ object DownloadManager {
             val path = if (isPlaylist) raw.substringAfter('\t', "").trim() else raw.trim()
             path.takeIf { it.isNotBlank() && File(it).exists() }
           }
-      // Страховка: даже если yt-dlp не напечатал пути, публикуем всё, что лежит в кэше задачи.
+      // Если yt-dlp не напечатал пути, берём всё из кэша задачи.
       val filePaths =
         printedPaths.ifEmpty {
           if (!isPlaylist) emptyList()

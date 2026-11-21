@@ -90,11 +90,7 @@ import org.xotabl4.ytdlpgui.service.DownloadService
 import org.xotabl4.ytdlpgui.ui.DownloadProgressBlock
 import org.xotabl4.ytdlpgui.ui.rememberNotificationPermissionRequester
 
-/**
- * Экран «ссылка → формат → загрузка».
- *
- * Поле ссылки, кнопка получения форматов, категории, список качеств и блок прогресса.
- */
+/** Экран загрузки: ссылка, форматы, прогресс. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LinkScreen(
@@ -153,9 +149,7 @@ fun LinkScreen(
       },
       onFetch = viewModel::fetch,
     )
-    // Загрузка может идти и без полученных форматов, например после «Повторить»
-    // из библиотеки, поэтому прогресс показывается и здесь. Активная загрузка видна
-    // всегда, результат только пока ссылка в поле не изменилась.
+    // Загрузка может идти и без форматов, поэтому прогресс показываем и здесь.
     val showsDownload =
       downloadState is DownloadState.Running ||
         (downloadState !is DownloadState.Idle && downloadUrl == url.trim())
@@ -554,10 +548,7 @@ private fun ContainerChips(items: List<FormatItem>, current: String?, onSelect: 
   }
 }
 
-/**
- * Строка «Видео / Аудио / Качество»: показывает выбранное качество и открывает список
- * (как кнопка «Качество» в мобильных клиентах).
- */
+/** Строка выбора качества. */
 @Composable
 private fun PickerRow(label: String, chosen: FormatItem?, auto: FormatItem?, onClick: () -> Unit) {
   val shown = chosen ?: auto
@@ -612,10 +603,7 @@ private fun qualityTitle(item: FormatItem, auto: FormatItem?): String {
   }
 }
 
-/**
- * Нижнее окно со списком качеств: «Автоматически», затем разрешения (или битрейты аудио)
- * с ожидаемым размером — как на скриншоте «Качество».
- */
+/** Нижнее окно со списком качеств. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QualitySheet(

@@ -1,12 +1,6 @@
 package org.xotabl4.ytdlpgui.core
 
-/**
- * Выбор формата в два шага: контейнер, затем качество.
- *
- * Плоский список из десятков строк заменён чипами контейнеров и списком качеств,
- * первая строка — «Автоматически», то есть лучшее из доступного. Функции чистые,
- * поэтому покрыты тестами без Android.
- */
+/** Выбор формата: сначала контейнер, потом качество. */
 object FormatPicker {
   /** `bestvideo*+bestaudio/best`, лучшее видео с лучшим аудио. */
   const val BEST_VIDEO_AUDIO = "bestvideo*+bestaudio/best"
@@ -18,24 +12,24 @@ object FormatPicker {
     AudioOnly,
   }
 
-  /** Предпочтительный порядок контейнеров в чипах; остальные — по алфавиту после них. */
+  /** Порядок контейнеров в чипах. */
   private val CONTAINER_ORDER = listOf("mp4", "webm", "mkv", "m4a", "opus", "mp3", "wav", "flac")
 
-  /** Контейнеры, встречающиеся в списке, в порядке [CONTAINER_ORDER]. */
+  /** Контейнеры из списка, в нужном порядке. */
   fun containers(items: List<FormatItem>): List<String> =
     items.map { it.ext }.distinct().sortedWith(compareBy({ order(it) }, { it }))
 
   fun withContainer(items: List<FormatItem>, container: String?): List<FormatItem> =
     if (container.isNullOrBlank()) items else items.filter { it.ext == container }
 
-  /** Лучшее сверху: выше разрешение, затем битрейт (у аудио высота 0 → решает битрейт). */
+  /** Лучшее сверху: разрешение, потом битрейт. */
   fun sortedByQuality(items: List<FormatItem>): List<FormatItem> =
     items.sortedWith(compareByDescending<FormatItem> { it.height }.thenByDescending { it.tbr })
 
-  /** «Лучшее доступное» — первая строка списка «Автоматически». */
+  /** Лучший формат из списка. */
   fun best(items: List<FormatItem>): FormatItem? = sortedByQuality(items).firstOrNull()
 
-  /** «2160p» для видео, «128k» для аудио; подписи-заглушки приходят из ресурсов. */
+  /** Подпись качества: 2160p или 128k. */
   fun qualityLabel(item: FormatItem, videoLabel: String = "Видео", audioLabel: String = "Аудио"): String =
     when {
       item.hasVideo && item.height > 0 -> "${item.height}p"
@@ -44,10 +38,7 @@ object FormatPicker {
       else -> audioLabel
     }
 
-  /**
-   * Полная подпись строки: «2160p 60fps HDR» / «1080p 30fps» / «265k».
-   * Именно этим различаются два 2160p у VK и два 1080p у YouTube.
-   */
+  /** Подпись строки: разрешение, fps, HDR. */
   fun qualityTitle(
     item: FormatItem,
     videoLabel: String = "Видео",
@@ -62,7 +53,7 @@ object FormatPicker {
     return if (extras.isEmpty()) base else "$base ${extras.joinToString(" ")}"
   }
 
-  /** Бейдж качества рядом с разрешением: 4K / 2K / FHD / HD / SD. */
+  /** Бейдж 4K, 2K, FHD, HD или SD. */
   fun badge(item: FormatItem): String? =
     when {
       !item.hasVideo || item.height <= 0 -> null
@@ -74,10 +65,7 @@ object FormatPicker {
       else -> null
     }
 
-  /**
-   * Подпись строки списка качеств: контейнер, кодеки, частота кадров, битрейт и ожидаемый размер.
-   * Битрейт и fps нужны, чтобы различать строки одного разрешения (например, 1080p 30 и 60 fps).
-   */
+  /** Подробности строки: контейнер, кодеки, fps, битрейт, размер. */
   fun detail(item: FormatItem): String {
     val fps = FormatsParser.fpsLabel(item.fps)
     val parts =
@@ -92,18 +80,15 @@ object FormatPicker {
     return parts.joinToString(" · ")
   }
 
-  /** Подпись аудиодорожки в сводке («A: mp4a · 5 MB»). */
+  /** Подпись аудиодорожки. */
   fun audioDetail(item: FormatItem): String =
     "A: ${item.acodecShort} · ${FormatsParser.sizeLabel(item.rawFilesize)}"
 
-  /**
-   * id для `yt-dlp -f`: при конвертации видео и звук качаются отдельными потоками
-   * (`<video>+<audio>`), без отдельной дорожки — как раньше `+bestaudio/best`.
-   */
+  /** id для `-f` с отдельными потоками. */
   fun mergedId(video: FormatItem, audio: FormatItem?): String =
     if (audio != null) "${video.downloadId}+${audio.downloadId}" else "${video.downloadId}+bestaudio/best"
 
-  /** Готовый `-f`-id для выбранной категории; `null` — выбирать нечего. */
+  /** id для выбранной категории. */
   fun idFor(
     kind: Kind,
     combined: FormatItem?,
@@ -116,10 +101,7 @@ object FormatPicker {
       Kind.AudioOnly -> audio?.downloadId
     }
 
-  /**
-   * Ожидаемый размер итогового файла: сумма частей. `0` — размер неизвестен
-   * (yt-dlp для части форматов `filesize` не отдаёт).
-   */
+  /** Суммарный размер частей, 0 если неизвестен. */
   fun expectedBytes(parts: List<FormatItem?>): Long {
     var total = 0L
     var any = false
@@ -132,7 +114,7 @@ object FormatPicker {
     return if (any) total else 0L
   }
 
-  /** Размер для выбранной категории: «Видео + аудио» = готовый файл, «Только видео» = сумма потоков. */
+  /** Размер для выбранной категории. */
   fun bytesFor(
     kind: Kind,
     combined: FormatItem?,

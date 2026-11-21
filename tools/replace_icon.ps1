@@ -1,14 +1,5 @@
-﻿# Замена иконки приложения из готовой картинки.
-#
-# Пример:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\replace_icon.ps1 `
-#       -Source C:\Users\Xotabl4\Desktop\icon.png
-#
-# Что делает:
-#  * mipmap-mdpi..xxxhdpi/ic_launcher.png и ic_launcher_round.png — для API 24–25
-#    (адаптивная иконка работает только с API 26, ниже система берёт эти PNG);
-#  * при -Foreground <png> кладёт передний план в drawable-nodpi/ic_launcher_foreground.png
-#    (108dp = 432 px) и убирает старый вектор в _template_backup.
+# Заменяет иконку приложения из готовой картинки.
+# Пример: powershell -File tools\replace_icon.ps1 -Source C:\путь\icon.png
 param(
   [Parameter(Mandatory = $true)][string]$Source,
   [string]$Foreground = '',

@@ -35,13 +35,7 @@ enum class FormatCategory(@StringRes val labelRes: Int) {
       }
 }
 
-/**
- * Нужно ли выбирать видео и аудио по отдельности.
- *
- * При конвертации в контейнер нужно два потока: `--merge-output-format` применяется
- * к результату склейки, а не к готовому файлу. Если отдельных потоков нет
- * (RuTube отдаёт только собранные файлы), остаётся категория «Видео + аудио».
- */
+/** Нужно ли выбирать видео и аудио отдельно. */
 fun needsSeparateStreams(conversion: String, formats: Formats): Boolean =
   conversion != ORIGINAL_FORMAT && formats.videoOnly.isNotEmpty()
 

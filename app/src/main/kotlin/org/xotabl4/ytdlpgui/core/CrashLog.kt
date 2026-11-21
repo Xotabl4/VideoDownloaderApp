@@ -17,18 +17,10 @@ private const val FILE_PREFIX = "crash-"
 private const val FILE_SUFFIX = ".txt"
 
 /**
- * Лог фатальных падений в файл: без adb и без сторонних библиотек (crashlytics и т.п.).
- *
- * R8 однажды уже ломал запуск (commons-compress), а увидеть ошибку можно было только по логу
- * logcat. Теперь [install] перехватывает необработанное исключение, пишет отчёт
- * в `filesDir/crash/crash-<дата>.txt` и передаёт управление прежнему обработчику,
- * поэтому система по-прежнему показывает диалог «Приложение остановлено».
- *
- * Форматирование отчёта, имя файла и правило ротации — чистые функции (`formatReport`,
- * [fileName], [filesToDelete]), покрыты юнит-тестами.
+ * Пишет отчёт о падении в файл. Нужен, когда под рукой нет adb.
  */
 object CrashLog {
-  /** Сколько последних отчётов держим: больше не нужно, а дисковое место не бесконечно. */
+  /** Сколько отчётов храним. */
   const val LIMIT = 5
 
   @Volatile private var installed = false
@@ -36,7 +28,7 @@ object CrashLog {
   private val fileNameFormat = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
   private val displayFormat = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
 
-  /** Ставит обработчик один раз за процесс. Повторные вызовы (Application, тесты) безопасны. */
+  /** Ставит обработчик один раз. */
   fun install(context: Context) {
     if (installed) return
     installed = true
@@ -44,7 +36,7 @@ object CrashLog {
     val previous = Thread.getDefaultUncaughtExceptionHandler()
     Thread.setDefaultUncaughtExceptionHandler { thread, error ->
       write(app, thread, error)
-      // Прежний обработчик (ActivityThread) завершает процесс и показывает системный диалог.
+      // Отдаём дальше: система сама покажет диалог о падении.
       previous?.uncaughtException(thread, error)
     }
   }
@@ -61,15 +53,12 @@ object CrashLog {
   /** «08.11 21:35» — для строки в настройках. */
   fun formatTime(millis: Long): String = displayFormat.format(Date(millis))
 
-  /** Имя отчёта: `crash-2026-11-09_12-30-15.txt` (UTC-независимо, сортируется по алфавиту). */
+  /** Имя файла отчёта. */
   fun fileName(timestamp: Long): String = synchronized(fileNameFormat) {
     "$FILE_PREFIX${fileNameFormat.format(Date(timestamp))}$FILE_SUFFIX"
   }
 
-  /**
-   * Текст отчёта. [device] и [appVersion] передаются снаружи, чтобы функция оставалась
-   * пригодной для JVM-тестов без Android.
-   */
+  /** Текст отчёта. */
   fun formatReport(
     timestamp: String,
     appVersion: String,
@@ -86,14 +75,11 @@ object CrashLog {
       append(error.stackTraceToString())
     }
 
-  /**
-   * Файлы к удалению. [existingNewestFirst] — отчёты, отсортированные от нового к старому;
-   * всё, что не влезает в [limit], подлежит удалению.
-   */
+  /** Какие файлы удалить, чтобы осталось [limit] штук. */
   fun filesToDelete(existingNewestFirst: List<String>, limit: Int = LIMIT): List<String> =
     if (existingNewestFirst.size <= limit) emptyList() else existingNewestFirst.drop(limit)
 
-  /** `ACTION_SEND` с вложением-отчётом через `FileProvider` (`${applicationId}.files`). */
+  /** Отправка отчёта через «Поделиться». */
   fun shareIntent(context: Context, file: File): Intent {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
     val send =
@@ -129,7 +115,7 @@ object CrashLog {
       .onFailure { Log.w(TAG, "не удалось сохранить отчёт: ${it.message}") }
   }
 
-  /** Оставляет [LIMIT] самых свежих отчётов: при частых падениях папка не растёт бесконечно. */
+  /** Удаляет старые отчёты, оставляет [LIMIT]. */
   private fun prune(dir: File) {
     val reports =
       dir

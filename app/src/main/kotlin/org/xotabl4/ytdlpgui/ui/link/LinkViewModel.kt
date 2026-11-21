@@ -99,10 +99,8 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
   fun onUrlChange(value: String) {
     if (value == _url.value) return
     _url.value = value
-    // Любое изменение ссылки делает результат прошлой загрузки неактуальным:
-    // сама загрузка никуда не девается — она есть в «Загрузках» и в истории.
-    // `reset()` не трогает активную загрузку (проверяет `isRunning`), поэтому
-    // прогресс идущего скачивания при правке ссылки не пропадает.
+    // Любая правка ссылки сбрасывает результат прошлой загрузки.
+    // Активную загрузку reset() не трогает.
     DownloadManager.reset()
   }
 

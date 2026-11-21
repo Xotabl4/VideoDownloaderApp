@@ -1,17 +1,6 @@
 package org.xotabl4.ytdlpgui.core
 
-/**
- * Правки ELF сборки ffmpeg из Termux. Делаются при установке, поэтому одинаково
- * применяются к вшитой версии и к скачанной апдейтером.
- *
- * 1. `RUNPATH` Termux (`/data/data/com.termux/files/usr/lib`) меняется на `$ORIGIN`-путь.
- * 2. `libc++_shared.so` переименовывается в [LIBCXX_RENAMED] в `DT_NEEDED` и `DT_SONAME`.
- *    youtubedl-android запускает yt-dlp с `LD_LIBRARY_PATH` на свой Python-каталог, где
- *    лежит старая libc++ без символа `__from_chars_floating_point`; линкер переиспользует
- *    её по soname, и склейка падает. Уникальное имя убирает такую коллизию.
- *
- * Обе замены идут «на месте»: новая строка не длиннее старой, хвост забивается нулями.
- */
+/** Правки ELF у ffmpeg: пути к библиотекам и переименование libc++. */
 internal object ElfPatch {
   const val TERMUX_RUNPATH = "/data/data/com.termux/files/usr/lib"
 
@@ -37,11 +26,7 @@ internal object ElfPatch {
     return bytes
   }
 
-  /**
-   * Заменяет все вхождения C-строки [old] (с завершающим NUL) на [new] в [bytes].
-   * [new] не длиннее [old] — остаток забивается нулями, чтобы не сдвигать таблицу строк.
-   * Возвращает `true`, если хотя бы одно вхождение найдено.
-   */
+  /** Заменяет строку в ELF. Новая должна быть не длиннее старой. */
   fun replaceCString(bytes: ByteArray, old: String, new: String): Boolean {
     require(new.length <= old.length) { "замена «$new» длиннее исходной «$old»" }
     if (old.isEmpty()) return false

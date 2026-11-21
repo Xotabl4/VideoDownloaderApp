@@ -18,14 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import org.xotabl4.ytdlpgui.R
 
-/**
- * Запрос POST_NOTIFICATIONS в момент запуска загрузки, а не при старте приложения.
- *
- * Возвращённая функция получает действие, которое выполняется после ответа: запускать
- * сервис сразу нельзя, пока активность на паузе из-за диалога, система такой запуск
- * отклоняет. Перед системным диалогом показывается объяснение, отказ тоже запускает
- * загрузку, просто без прогресса в шторке.
- */
+/** Запрашивает уведомления при запуске загрузки, а не на старте приложения. */
 @Composable
 fun rememberNotificationPermissionRequester(): (onReady: () -> Unit) -> Unit {
   val context = LocalContext.current

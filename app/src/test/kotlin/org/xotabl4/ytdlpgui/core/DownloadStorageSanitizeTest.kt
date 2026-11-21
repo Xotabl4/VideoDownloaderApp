@@ -3,10 +3,7 @@ package org.xotabl4.ytdlpgui.core
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * Тесты очистки имён файлов перед публикацией в «Загрузки» ([DownloadStorage.sanitize]).
- * Второй тест — регрессия RuTube: заголовок заканчивался точкой и получалось `… понял..mp4`.
- */
+/** Тесты очистки имён файлов. */
 class DownloadStorageSanitizeTest {
   @Test
   fun `forbidden characters replaced`() {

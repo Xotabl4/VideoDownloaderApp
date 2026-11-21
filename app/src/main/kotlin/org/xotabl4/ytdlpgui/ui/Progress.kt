@@ -18,9 +18,7 @@ import androidx.compose.ui.unit.dp
 import org.xotabl4.ytdlpgui.R
 import org.xotabl4.ytdlpgui.core.DownloadState
 
-/**
- * Блок прогресса: процент, ETA, последняя строка yt-dlp и кнопка «Отмена».
- */
+/** Блок прогресса загрузки. */
 @Composable
 fun DownloadProgressBlock(
   state: DownloadState,

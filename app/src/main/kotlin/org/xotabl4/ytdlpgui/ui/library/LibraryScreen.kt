@@ -62,15 +62,10 @@ import org.xotabl4.ytdlpgui.ui.DownloadPlate
 import org.xotabl4.ytdlpgui.ui.rememberNotificationPermissionRequester
 import org.xotabl4.ytdlpgui.ui.theme.SuccessGreen
 
-/** Табы библиотеки из концепта: All / Downloading / Completed. */
+/** Табы библиотеки. */
 private enum class LibraryTab { All, Downloading, Completed }
 
-/**
- * Экран «Library» в стиле концепта: табы, карточки с миниатюрой, размером и прогрессом.
- *
- * Активная загрузка показывается первой карточкой (круговой индикатор + «Downloading NN%»),
- * завершённые — с зелёной галочкой. Действия по карточке: «Открыть», «Повторить», «Удалить».
- */
+/** Экран «Загрузки»: табы, карточки, прогресс. */
 @Composable
 fun LibraryScreen(modifier: Modifier = Modifier) {
   val context = LocalContext.current

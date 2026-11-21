@@ -4,10 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Тесты истории загрузок: формат хранения (TSV + экранирование), порядок, лимит.
- * Работа с файлами/MediaStore здесь не проверяется — только чистые функции.
- */
+/** Тесты истории загрузок. */
 class DownloadHistoryTest {
   private fun entry(
     id: String,

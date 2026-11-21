@@ -5,10 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Тесты правок ELF-строк: замена RUNPATH Termux на `$ORIGIN` и переименование
- * `libc++_shared.so` → `libcxxff.so` (см. [ElfPatch]).
- */
+/** Тесты правок ELF. */
 class ElfPatchTest {
   private fun ascii(vararg parts: String): ByteArray =
     parts.joinToString(separator = "").toByteArray(Charsets.US_ASCII)

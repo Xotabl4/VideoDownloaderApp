@@ -6,12 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import org.xotabl4.ytdlpgui.ui.PhHarvestActivity
 
-/**
- * Мост между репозиторием/сервисом и [PhHarvestActivity].
- *
- * PornHub без TLS-impersonation отдаёт 403, поэтому варианты качества достаём из реального
- * WebView (он проходит age-gate), а прямые mp4/m3u8-ссылки затем качаем обычным yt-dlp.
- */
+/** Связь с окном [PhHarvestActivity]. */
 object PhHarvest {
   /** Один вариант качества со страницы PH. */
   data class PhVariant(val quality: Int, val format: String, val url: String)

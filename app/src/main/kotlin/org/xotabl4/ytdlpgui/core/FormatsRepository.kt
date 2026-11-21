@@ -137,9 +137,7 @@ object FormatsRepository {
         }
       }
 
-      // `--flat-playlist` не отдаёт форматы — запрашиваем их у первого ролика, у которого
-      // они есть: в плейлисте бывают удалённые/заблокированные записи, и первый же
-      // ролик может оказаться недоступным.
+      // У плейлиста форматы берём у первого доступного ролика.
       var rawFormats = parsed.formats
       var thumbnail = parsed.thumbnail
       var durationSeconds = parsed.durationSeconds
@@ -184,10 +182,7 @@ object FormatsRepository {
       formats
     }
 
-  /**
-   * Имя подпапки для плейлиста VK: площадка не отдаёт название подборки, поэтому
-   * собираем его из владельца и номера плейлиста — «ФАН ТВ — VK плейлист 2».
-   */
+  /** Имя папки для плейлиста VK: владелец и номер. */
   private fun vkFolder(context: Context, vk: VkPlaylist.Info.Ok): String =
     if (vk.owner.isBlank()) {
       context.getString(R.string.vk_playlist_folder, vk.sectionId)
@@ -195,11 +190,7 @@ object FormatsRepository {
       context.getString(R.string.vk_playlist_folder_owner, vk.owner, vk.sectionId)
     }
 
-  /**
-   * VK на ограниченные страницы отвечает `blank.php?rkn=<id>`, и yt-dlp падает
-   * с `TypeError: string indices must be integers`. Проверяем причину отдельно,
-   * чтобы вместо технической строки показать понятную фразу.
-   */
+  /** Понятный текст, если VK ограничил доступ к плейлисту. */
   private fun vkBlockedMessage(context: Context, url: String): String? {
     if (!VkPlaylist.matches(url)) return null
     return when (VkPlaylist.fetch(url)) {
@@ -209,10 +200,7 @@ object FormatsRepository {
     }
   }
 
-  /**
-   * Диагностика: последняя ошибка пишется в `Android/data/<pkg>/files/last_error.txt`,
-   * чтобы её можно было посмотреть через adb (в release logcat приложения закрыт).
-   */
+  /** Пишет последнюю ошибку в файл, чтобы посмотреть её через adb. */
   private fun saveLastError(
     context: Context,
     url: String,

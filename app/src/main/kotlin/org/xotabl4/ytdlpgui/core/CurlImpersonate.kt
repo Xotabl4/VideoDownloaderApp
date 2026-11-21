@@ -79,17 +79,10 @@ object CurlImpersonate {
     return count
   }
 
-  /**
-   * Выключатель impersonation: без рабочего curl_cffi запрос падает
-   * с ошибкой `target "chrome" is not available`. Включать после проверки импорта.
-   */
+  /** Включает impersonation. */
   private const val ENABLED = true
 
-  /**
-   * Диагностика (временно): спрашиваем у yt-dlp список доступных impersonate-целей и пишем
-   * stdout/stderr в `Android/data/<pkg>/files/imp_probe.txt`. Команда не падает (exit 0),
-   * поэтому библиотека отдаёт полный ответ, включая текст `ImportError` для curl_cffi.
-   */
+  /** Диагностика: пишет список impersonate-целей в imp_probe.txt. */
   suspend fun probe(context: Context) {
     val site = sitePackages(context) ?: return
     // Принудительно распаковываем бандл (маркер игнорируем): нужен свежий sitecustomize.
@@ -126,11 +119,7 @@ object CurlImpersonate {
     Log.i(TAG, "probe: ${text.take(300)}")
   }
 
-  /**
-   * `libcurl-impersonate.so` собран без RUNPATH, а ему нужен `libcxxff.so`. Каталог
-   * `usr/lib` библиотека youtubedl-android кладёт в `LD_LIBRARY_PATH` для Python,
-   * поэтому копируем libc++ туда.
-   */
+  /** Копирует libcxxff.so в usr/lib, откуда его ищет libcurl. */
   private fun copyLibcxx(sitePackages: File) {
     runCatching {
       val usrLib = sitePackages.parentFile?.parentFile ?: return

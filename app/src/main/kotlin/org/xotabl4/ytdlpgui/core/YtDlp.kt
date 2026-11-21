@@ -44,12 +44,7 @@ sealed interface YtDlpState {
   data class Failed(val message: String) : YtDlpState
 }
 
-/**
- * Точка доступа к [YoutubeDL] и [FFmpeg].
- *
- * Версию спрашиваем у самого бинаря: `YoutubeDL.version(context)` читает SharedPreferences,
- * которые заполняет только апдейтер, и для вшитой сборки отдаёт null.
- */
+/** Точка доступа к yt-dlp и ffmpeg. */
 object YtDlp {
   /** Версия yt-dlp, вшитая в APK (`assets/ytdlp`) — эталон для цветового индикатора. */
   val bundledYtDlpVersion: String
@@ -150,10 +145,7 @@ object YtDlp {
     }
   }
 
-  /**
-   * «Обновить ffmpeg»: тянем актуальную сборку из репозитория Termux (там же, откуда её берёт
-   * `apt install ffmpeg`), распаковываем в `filesDir/ffmpeg/<версия>` и переключаем `current`.
-   */
+  /** «Обновить ffmpeg»: берёт сборку из репозитория Termux. */
   fun updateFfmpeg(context: Context) {
     if (_ffmpegStatus.value is ToolStatus.Running) return
     val appContext = context.applicationContext
@@ -184,10 +176,7 @@ object YtDlp {
     }
   }
 
-  /**
-   * «Переустановить ffmpeg»: заново разворачиваем вшитую в APK сборку
-   * (симлинки soname создаём сами через `Os.symlink`, поэтому перезапуск не нужен).
-   */
+  /** «Переустановить ffmpeg»: заново разворачивает вшитую сборку. */
   fun reinstallFfmpeg(context: Context) {
     if (_ffmpegStatus.value is ToolStatus.Running) return
     val appContext = context.applicationContext
@@ -283,14 +272,9 @@ object YtDlp {
    * `yt-dlp --version` через встроенный Python. Если бинарь не запускается,
    * исключение покажет это лучше любого лога.
    */
-  /**
-   * Ставит yt-dlp из `assets/ytdlp` вместо версии из AAR: сборка 2025.11.12 слишком
-   * старая, YouTube отвечает на неё 403. Готовый zipapp собран из PyPI-пакетов
-   * `yt-dlp` и `yt-dlp-ejs`, потому что `updateYoutubeDL()` качает с GitHub.
-   * Для обновления достаточно заменить asset и [BUNDLED_YTDLP_VERSION].
-   */
+  /** Ставит yt-dlp из assets вместо версии из библиотеки. */
   private fun installBundledYtDlp(appContext: Context, force: Boolean = false) {
-    // Библиотека запускает именно этот путь (см. Bytecode init(): ytdlpDir = noBackup/youtubedl-android/yt-dlp).
+    // Библиотека запускает файл именно по этому пути.
     val root = File(appContext.noBackupFilesDir, "youtubedl-android/yt-dlp")
     val target = File(root, "yt-dlp")
     val prefs = appContext.getSharedPreferences("bundled_ytdlp", Context.MODE_PRIVATE)

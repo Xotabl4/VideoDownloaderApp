@@ -27,15 +27,14 @@ private const val DEFAULT_LABEL = "Download"
 /** Куда публикуем готовый файл. */
 data class Destination(val safTreeUri: String?, val label: String)
 
-/** Результат публикации: путь для показа + content-uri для «Открыть»/«Поделиться». */
+/** Готовый файл: путь для показа и ссылка для «Открыть». */
 data class SavedFile(val title: String, val displayPath: String, val uri: String, val mimeType: String)
 
 /**
- * Сохранение готового файла.
+ * Сохраняет готовый файл.
  *
- * yt-dlp умеет писать только в реальные пути, поэтому сначала файл появляется во
- * временном каталоге приложения, а затем копируется в MediaStore (API 29+),
- * в дерево SAF или в `Download/` (API 24–28).
+ * yt-dlp пишет во временную папку, потом файл переносится в «Загрузки»
+ * или в папку, которую выбрал пользователь.
  */
 object DownloadStorage {
   private val _destination = MutableStateFlow(Destination(null, DEFAULT_LABEL))
@@ -66,18 +65,11 @@ object DownloadStorage {
     Log.i(TAG, "destination = default Download")
   }
 
-  /**
-   * Временный каталог для yt-dlp (качаем туда, потом копируем в место назначения).
-   * [sub] — отдельный подкаталог под конкретную задачу: при параллельных загрузках
-   * общий каталог привёл бы к смешиванию файлов и к «чужому» fallback-списку.
-   */
+  /** Временная папка для одной загрузки. */
   fun tempDir(context: Context, sub: String? = null): File =
     File(File(context.cacheDir, "downloads"), sub.orEmpty()).apply { mkdirs() }
 
-  /**
-   * Удаляет недокачанные части временного каталога или подкаталога задачи,
-   * чтобы `.part`-файлы не занимали место.
-   */
+  /** Удаляет недокачанные части. */
   fun clearTemp(context: Context, sub: String? = null): Long {
     val dir = tempDir(context, sub)
     var freed = 0L
@@ -105,10 +97,7 @@ object DownloadStorage {
       else -> "application/octet-stream"
     }
 
-  /**
-   * Публикует файл в «Загрузки» (MediaStore), выбранную SAF-папку или `Download/`.
-   * [subDir] — подпапка (название плейлиста); `null` — кладём в корень папки загрузок.
-   */
+  /** Публикует файл в «Загрузки» или в выбранную папку. */
   suspend fun publish(context: Context, source: File, subDir: String? = null): SavedFile =
     withContext(Dispatchers.IO) {
       val name = sanitize(source.name)
@@ -127,13 +116,7 @@ object DownloadStorage {
       saved
     }
 
-  /**
-   * `\ / : * ? " < > |` запрещены в именах, плюс ограничение длины.
-   * Хвостовые точки и пробелы у базового имени срезаются: заголовки часто заканчиваются точкой
-   * («… и всё понял.», RuTube), из-за чего получалось `… и всё понял..mp4` — а имя с точкой
-   * перед расширением плохо переносится между ФС и каталогами MediaStore.
-   */
-  /** Имя подпапки (плейлиста): без запрещённых символов и хвостовых точек/пробелов. */
+  /** Имя подпапки: без запрещённых символов и точек в конце. */
   fun sanitizeDir(rawName: String): String {
     val cleaned = rawName.replace(Regex("""[\\/:*?"<>|]"""), "_").trim().trimEnd('.', ' ')
     return if (cleaned.length <= 80) cleaned else cleaned.take(80).trimEnd('.', ' ')

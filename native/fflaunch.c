@@ -1,20 +1,11 @@
 /*
- * fflaunch — крошечный лаунчер обновляемого ffmpeg.
+ * fflaunch — маленький лаунчер обновляемого ffmpeg.
  *
- * Android 10+ (SELinux, untrusted_app) запрещает execve файлов из каталога данных
- * приложения, поэтому распакованный ffmpeg (files/ffmpeg/<версия>/real/) запустить
- * напрямую нельзя. Лаунчер лежит в nativeLibraryDir (там exec разрешён) и подменяет
- * процесс на:
+ * Android не даёт запускать ffmpeg из папки данных, поэтому лаунчер (он лежит
+ * в nativeLibraryDir) запускает нужный бинарник через linker64:
  *     /system/bin/linker64 <files>/ffmpeg/current/real/<ffmpeg|ffprobe> "$@"
  *
- * Его вызывают двумя путями:
- *   1. youtubedl-android жёстко передаёт --ffmpeg-location <nativeLibraryDir>/libffmpeg.so
- *      (этот путь зашит в библиотеку и переопределяет нашу опцию), поэтому лаунчер
- *      компилируется именно как libffmpeg.so / libffprobe.so.
- *   2. Мы сами создаём симлинки <files>/ffmpeg/current/bin/{ffmpeg,ffprobe} → libffmpeg.so
- *      (для своей проверки -version и на случай прямого --ffmpeg-location).
- *
- * Имя бинаря берём из basename(argv[0]):
+ * Имя бинаря берётся из basename(argv[0]):
  *   ffmpeg / libffmpeg.so → ffmpeg;  ffprobe / libffprobe.so → ffprobe.
  *
  * Путь к ffmpeg зашит под конкретное приложение (packageName фиксирован).

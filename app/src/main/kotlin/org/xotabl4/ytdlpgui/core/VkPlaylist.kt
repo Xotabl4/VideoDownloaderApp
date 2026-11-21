@@ -6,18 +6,9 @@ import java.net.URLEncoder
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Метаданные плейлиста VK, которых нет в `yt-dlp -J`.
- *
- * Для `vk.com/video/playlist/<oid>_<id>` yt-dlp отдаёт `_type=playlist`, но `title`
- * и `playlist_count` пустые: страница собирается скриптами. Внутренний AJAX-метод
- * `al_video.php` отдаёт `total` и имя владельца, этого хватает для подпапки и счётчика.
- *
- * Ответ `code=4` означает ограничение по требованию Роскомнадзора; yt-dlp такой ответ
- * не разбирает и падает с `TypeError: string indices must be integers`.
- */
+/** Название и число видео у плейлистов VK. */
 object VkPlaylist {
-  /** `vk.com/video/playlist/-174476437_2`, `vkvideo.ru/playlist/-51890028_-2`, `vk.ru/...`. */
+  /** Ссылки на плейлисты VK. */
   private val PLAYLIST_URL =
     Regex(
       """//(?:m\.|new\.)?vk(?:video)?\.(?:com|ru)/(?:video/)?playlist/(-?\d+)_(-?\d+)""",
@@ -69,11 +60,7 @@ object VkPlaylist {
     return runCatching { parsePayload(body, ref.sectionId) }.getOrDefault(Info.Unknown)
   }
 
-  /**
-   * VK отдаёт `al_video.php` то в UTF-8, то в windows-1251 (зависит от эксперимента
-   * на стороне сервера). Без этого имя владельца превращалось в `?????` и попадало
-   * в название папки.
-   */
+  /** VK отдаёт ответ то в UTF-8, то в windows-1251. */
   internal fun decode(bytes: ByteArray): String {
     val utf8 = String(bytes, Charsets.UTF_8)
     return if ('\uFFFD' in utf8) String(bytes, charset("windows-1251")) else utf8
@@ -112,12 +99,7 @@ object VkPlaylist {
     }
   }
 
-  /**
-   * Ответ `al_video.php` = `{"payload": ["<code>", <data>]}`:
-   * `code=0` → `data[0]["playlist_<id>"]` с `list/count/total`;
-   * `code=4` → `data = ["/blank.php?rkn=…", "0"]` (блокировка);
-   * `code=3` → нужен вход.
-   */
+  /** Ответ al_video.php: код 0 — данные, 3 — нужен вход, 4 — блокировка. */
   internal fun parsePayload(body: String, sectionId: String): Info {
     val root = runCatching { JSONObject(body) }.getOrNull() ?: return Info.Unknown
     val payload = root.optJSONArray("payload") ?: return Info.Unknown

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Готовит ffmpeg для Android из репозитория Termux и раскладывает его в assets APK.
+"""Готовит ffmpeg для Android из репозитория Termux и кладёт его в assets APK.
 
-Зачем: AAR youtubedl-android 0.18.1 несёт ffmpeg 7.1.1 (старая сборка). Termux раздаёт
-актуальные сборки (сейчас 9.0.2) для тех же ABI. Скрипт скачивает пакет `ffmpeg` и его
-зависимости, оставляет `usr/bin/ffmpeg` + `usr/bin/ffprobe` и только те `.so`, которые
-реально нужны линкеру (замыкание DT_NEEDED), и пишет в `app/src/main/assets/ffmpeg9/`:
+Скачивает пакет ffmpeg с зависимостями, оставляет бинарники и нужные .so,
+пишет version.txt. В assets попадает ffmpeg9/:
 
     ffmpeg             бинарь (приложение копирует его в filesDir и запускает через
                        /system/bin/linker64 — прямой exec из данных запрещён SELinux)

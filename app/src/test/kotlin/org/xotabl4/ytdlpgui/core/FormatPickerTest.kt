@@ -5,10 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Тесты компактного выбора формата: контейнеры, «Автоматически» = лучшее качество,
- * сборка `-f`-id для раздельных потоков и ожидаемый размер файла.
- */
+/** Тесты выбора формата. */
 class FormatPickerTest {
   private fun item(
     id: String,

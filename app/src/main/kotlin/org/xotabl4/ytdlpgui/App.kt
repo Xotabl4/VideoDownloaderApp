@@ -18,7 +18,7 @@ class App : Application() {
     // Настройки из SharedPreferences: папка, тема, язык, автообновление.
     DownloadStorage.refresh(this)
     SettingsStore.refresh(this)
-    // Список незавершённых загрузок переживает перезапуск приложения.
+    // Список незавершённых загрузок не пропадает после перезапуска.
     DownloadTasks.refresh(this)
     // Проверка новой версии в фоне: не чаще раза в 12 часов и без диалогов.
     AppUpdate.checkOnStart(this)

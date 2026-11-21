@@ -4,9 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Тесты краш-лога: только чистые функции (запись файла и Android API требуют устройства).
- */
+/** Тесты краш-лога. */
 class CrashLogTest {
   @Test
   fun `report contains context lines and stack trace`() {

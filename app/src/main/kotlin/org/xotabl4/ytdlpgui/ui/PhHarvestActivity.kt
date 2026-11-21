@@ -185,10 +185,7 @@ class PhHarvestActivity : Activity() {
     const val EXTRA_URL = "ph_url"
     private const val MAX_ATTEMPTS = 10
 
-    /**
-     * Возвращает `quality|format|url` по одной строке на вариант из `flashvars.mediaDefinitions`
-     * (лучшее качество первым). Если их нет — единственную ссылку из HTML (quality=0).
-     */
+    /** Собирает ссылки на видео из flashvars. */
     private const val JS_MEDIA_LIST =
       "(function(){try{" +
       "var fv=null;try{for(var k in window){if(k&&k.indexOf('flashvars')===0&&window[k]){fv=window[k];break;}}}catch(e){}" +

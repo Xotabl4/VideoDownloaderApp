@@ -21,7 +21,7 @@ enum class AppTheme(val storageValue: String) {
   }
 }
 
-/** Язык интерфейса. `tag` — то, что уходит в [Locale]. */
+/** Язык приложения. */
 enum class AppLanguage(val tag: String) {
   Ru("ru"),
   En("en"),
@@ -32,9 +32,7 @@ enum class AppLanguage(val tag: String) {
   }
 }
 
-/**
- * Настройки приложения: автообновление yt-dlp, тема, язык.
- */
+/** Настройки: тема, язык, автообновление. */
 object SettingsStore {
   private const val PREFS = "app_settings"
   private const val KEY_AUTO_UPDATE_YTDLP = "auto_update_ytdlp"
@@ -67,18 +65,14 @@ object SettingsStore {
     _theme.value = theme
   }
 
-  /**
-   * Меняет язык. Для Compose достаточно [AppLanguage] (см. `LocalizedContent`), но сервис
-   * уведомлений и `Context.getString` в `core` берут строки из ресурсов приложения, поэтому
-   * локаль применяем и к ним — best effort.
-   */
+  /** Меняет язык и для строк вне Compose. */
   fun setLanguage(context: Context, language: AppLanguage) {
     prefs(context).edit().putString(KEY_LANGUAGE, language.tag).apply()
     _language.value = language
     applyLanguage(context.applicationContext, language)
   }
 
-  /** Локаль по умолчанию для строк вне Compose (уведомления, статусы инструментов). */
+  /** Язык для уведомлений и прочих строк вне Compose. */
   fun applyLanguage(context: Context, language: AppLanguage) {
     runCatching {
         val locale = Locale.forLanguageTag(language.tag)

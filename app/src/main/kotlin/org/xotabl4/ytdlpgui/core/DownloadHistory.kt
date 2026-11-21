@@ -32,40 +32,39 @@ data class HistoryEntry(
   val url: String = "",
   val formatId: String = "",
   val conversion: String = "",
-  /** URL миниатюры (из `yt-dlp -J`) и длительность — для карточки в библиотеке. */
+  /** URL миниатюры и длительность для карточки. */
   val thumbnail: String = "",
   val durationSeconds: Long = 0L,
-  /** `true` — запись получена из плейлиста: «Повторить» должно качать его в подпапку. */
+  /** Запись из плейлиста: «Повторить» качает в подпапку. */
   val isPlaylist: Boolean = false,
-  /** Название подпапки плейлиста (для повтора). */
+  /** Название папки плейлиста. */
   val playlistTitle: String = "",
 )
 
 /**
  * История загрузок.
  *
- * Хранится одной строкой в SharedPreferences: записи через табуляцию, спецсимволы
- * экранируются. Новых зависимостей не требует, encode и decode покрыты тестами.
+ * Хранится строкой в настройках, поля разделены табуляцией.
  */
 object DownloadHistory {
-  /** Сколько записей держим: больше не нужно, а файл настроек не разрастается. */
+  /** Сколько записей храним. */
   const val LIMIT = 100
 
   private val _entries = MutableStateFlow<List<HistoryEntry>>(emptyList())
   val entries: StateFlow<List<HistoryEntry>> = _entries.asStateFlow()
 
-  /** История уже прочитана из настроек — иначе [add] затёр бы старые записи пустым списком. */
+  /** История уже прочитана из настроек. */
   @Volatile private var loaded = false
 
   private val timeFormat = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
 
-  /** Параллельные загрузки пишут историю одновременно — списки и файл настроек под замком. */
+  /** Замок: две загрузки могут писать историю одновременно. */
   private val lock = Any()
 
   /** «08.11 16:45» — компактно, для строки истории. */
   fun formatTime(millis: Long): String = timeFormat.format(Date(millis))
 
-  /** Новые записи сверху; лишние обрезаются до [LIMIT]. */
+  /** Новая запись сверху, лишние обрезаются. */
   fun prepend(entries: List<HistoryEntry>, entry: HistoryEntry): List<HistoryEntry> =
     (listOf(entry) + entries.filterNot { it.id == entry.id }).take(LIMIT)
 
@@ -168,10 +167,9 @@ object DownloadHistory {
       playlistTitle = playlistTitle,
     )
 
-  /** Удаляет запись и (по флагу) сам файл. Возвращает `true`, если файл удалить удалось. */
+  /** Удаляет запись и её файл. */
   suspend fun remove(context: Context, id: String, deleteFile: Boolean = true): Boolean {
-    // Удаление файла — suspend, поэтому оно вне критической секции: сначала список,
-    // потом (уже без замка) сам файл.
+    // Сначала обновляем список, файл удаляем уже без замка.
     val entry =
       synchronized(lock) {
         ensureLoaded(context)
@@ -200,10 +198,7 @@ object DownloadHistory {
     if (deleteFiles) snapshot.forEach { deleteStoredFile(context, it.uri) }
   }
 
-  /**
-   * Удаление файла по uri, который мы же и создали: MediaStore (`content://media/...`),
-   * SAF-документ или `file://` из API 24–28.
-   */
+  /** Удаляет файл по сохранённой ссылке. */
   private suspend fun deleteStoredFile(context: Context, uri: String): Boolean =
     withContext(Dispatchers.IO) {
       if (uri.isBlank()) return@withContext false

@@ -12,31 +12,25 @@ import kotlinx.coroutines.withContext
 
 private const val TAG = "Thumbs"
 
-/**
- * Кэш миниатюр для карточек библиотеки.
- *
- * Библиотеку изображений (Coil/Glide) не подключаем — новых зависимостей не добавляем:
- * качаем превью обычным [HttpURLConnection] в `cacheDir/thumbs/<hash>.img` и декодируем
- * через [BitmapFactory]. Один и тот же кадр повторно из сети не тянется.
- */
+/** Кэш миниатюр. */
 object ThumbnailCache {
-  /** Декодированные миниатюры в памяти: при свайпе карточки пересоздаются, декод — уже нет. */
+  /** Картинки в памяти. */
   private val memory =
     object : android.util.LruCache<String, Bitmap>(8 * 1024 * 1024) {
       override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
-  /** Готовая миниатюра из памяти (для первого кадра без «мигания»). */
+  /** Уже загруженная миниатюра из памяти. */
   fun peek(url: String): Bitmap? = if (url.isBlank()) null else memory.get(url)
 
-  /** Уже скачанный файл миниатюры или `null`, если для записи её нет. */
+  /** Файл миниатюры на диске, если уже скачан. */
   fun cached(context: Context, url: String): File? {
     if (url.isBlank()) return null
     val file = fileFor(context, url)
     return if (file.length() > 0L) file else null
   }
 
-  /** Скачивает миниатюру при необходимости и возвращает декодированный [Bitmap]. */
+  /** Скачивает миниатюру при необходимости. */
   suspend fun load(context: Context, url: String): Bitmap? =
     withContext(Dispatchers.IO) {
       if (url.isBlank()) return@withContext null
@@ -45,7 +39,7 @@ object ThumbnailCache {
       decodeScaled(file)?.also { memory.put(url, it) }
     }
 
-  /** Декод с уменьшением: карточка ~96 dp, полноразмерную миниатюру (1280 px) хранить незачем. */
+  /** Уменьшает картинку под размер карточки. */
   private fun decodeScaled(file: File): Bitmap? {
     val bounds =
       BitmapFactory.Options().apply {

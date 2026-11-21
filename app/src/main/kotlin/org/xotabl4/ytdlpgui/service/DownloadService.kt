@@ -36,12 +36,7 @@ private const val TASK_ID_BASE = 100
 private const val ACTION_CANCEL = "org.xotabl4.ytdlpgui.action.CANCEL_DOWNLOAD"
 private const val EXTRA_TASK_ID = "task_id"
 
-/**
- * Foreground-сервис загрузок.
- *
- * На каждую активную задачу своё уведомление, плюс сводное, которое и держит сервис
- * в foreground. Кнопка «Отмена» несёт taskId, поэтому отменяется конкретная загрузка.
- */
+/** Foreground-сервис загрузок. */
 class DownloadService : Service() {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var wakeLock: PowerManager.WakeLock? = null

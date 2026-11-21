@@ -16,11 +16,9 @@ private const val TAG = "FfmpegUpdater"
 typealias UpdateProgress = (message: String, percent: Int?) -> Unit
 
 /**
- * Обновление ffmpeg из репозитория Termux — того же, из которого `apt install ffmpeg` в Termux
- * берёт актуальную сборку (на 08.11.2026 это 9.0.2, в APK вшита та же).
+ * Ставит ffmpeg из репозитория Termux.
  *
- * Формат Debian-пакета разбираем сами (`ar` + `data.tar.xz` + `tar`): нужен только xz-декодер
- * (`org.tukaani:xz`), остальное — десятки строк кода, без тяжёлых зависимостей.
+ * Пакет .deb разбираем сами, нужен только xz-декодер.
  */
 object FfmpegUpdater {
   private const val BASE = "https://packages.termux.dev/apt/termux-main"
@@ -47,10 +45,7 @@ object FfmpegUpdater {
     return 0
   }
 
-  /**
-   * Скачивает и ставит ffmpeg версии [version]: пакет `ffmpeg` + замыкание зависимостей,
-   * из каждого пакета берём только `usr/bin/ffmpeg|ffprobe` и `usr/lib/ (so-файлы)`.
-   */
+  /** Ставит ffmpeg нужной версии вместе с зависимостями. */
   fun install(context: Context, version: String, onProgress: UpdateProgress): String? {
     onProgress(context.getString(R.string.ffmpeg_progress_index), null)
     val packages = parsePackages(download("$BASE/dists/stable/main/binary-$ARCH/Packages"))
