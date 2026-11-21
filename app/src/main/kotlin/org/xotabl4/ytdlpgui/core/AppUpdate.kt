@@ -23,7 +23,7 @@ sealed interface UpdateState {
 
   data object NoReleases : UpdateState
 
-  data class Available(val version: String, val pageUrl: String) : UpdateState
+  data class Available(val version: String, val pageUrl: String, val apkUrl: String?) : UpdateState
 
   data class Failed(val message: String) : UpdateState
 }
@@ -103,8 +103,23 @@ object AppUpdate {
       val tag = json.optString("tag_name").trim().removePrefix("v")
       if (tag.isBlank()) return UpdateState.Failed("no tag")
       val page = json.optString("html_url").ifBlank { Links.RELEASES }
+      val apkUrl =
+        json
+          .optJSONArray("assets")
+          ?.let { assets ->
+            var result: String? = null
+            for (i in 0 until assets.length()) {
+              val asset = assets.optJSONObject(i) ?: continue
+              val name = asset.optString("name")
+              if (name.endsWith(".apk", ignoreCase = true)) {
+                result = asset.optString("browser_download_url").ifBlank { null }
+                break
+              }
+            }
+            result
+          }
       return if (isNewer(tag, currentVersion(context))) {
-        UpdateState.Available(tag, page)
+        UpdateState.Available(tag, page, apkUrl)
       } else {
         UpdateState.UpToDate
       }

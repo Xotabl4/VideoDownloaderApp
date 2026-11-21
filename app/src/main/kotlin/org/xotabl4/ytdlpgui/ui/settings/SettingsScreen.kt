@@ -7,6 +7,7 @@ import android.os.PowerManager
 import android.provider.DocumentsContract
 import android.provider.Settings
 import android.util.Log
+import java.io.File
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -62,6 +64,8 @@ import org.xotabl4.ytdlpgui.core.DownloadStorage
 import org.xotabl4.ytdlpgui.core.Links
 import org.xotabl4.ytdlpgui.core.SettingsStore
 import org.xotabl4.ytdlpgui.core.ToolStatus
+import org.xotabl4.ytdlpgui.core.UpdateDownloadState
+import org.xotabl4.ytdlpgui.core.UpdateInstaller
 import org.xotabl4.ytdlpgui.core.UpdateState
 import org.xotabl4.ytdlpgui.core.YtDlp
 import org.xotabl4.ytdlpgui.core.YtDlpState
@@ -83,6 +87,7 @@ fun SettingsScreen(
   val theme by SettingsStore.theme.collectAsStateWithLifecycle()
   val language by SettingsStore.language.collectAsStateWithLifecycle()
   val updateState by AppUpdate.state.collectAsStateWithLifecycle()
+  val downloadState by UpdateInstaller.state.collectAsStateWithLifecycle()
 
   // Разрешение на работу без оптимизации батареи пересчитывается при возврате в приложение:
   // его могли включить в системных настройках.
@@ -265,10 +270,17 @@ fun SettingsScreen(
         text = stringResource(R.string.about_app_version, appVersion),
         style = MaterialTheme.typography.bodyMedium,
       )
-      UpdateStatusRow(
-        state = updateState,
+      UpdateSection(
+        updateState = updateState,
+        downloadState = downloadState,
         onCheck = { AppUpdate.check(context) },
+        onDownload = { url -> UpdateInstaller.download(context, url) },
         onOpen = { url -> openUrl(context, url) },
+        onInstall = { file ->
+          UpdateInstaller.reset()
+          runCatching { context.startActivity(UpdateInstaller.installIntent(context, file)) }
+            .onFailure { Log.w("Settings", "install update: ${it.message}") }
+        },
       )
       Text(
         text = stringResource(R.string.about_license),
@@ -334,34 +346,86 @@ private fun requestIgnoreBatteryOptimizations(context: Context) {
   runCatching { context.startActivity(intent) }.onFailure { Log.w("Settings", "battery intent: ${it.message}") }
 }
 
-/** Строка «проверить обновления» с результатом и переходом на страницу релиза. */
+/** Проверка обновлений: статус, скачивание APK с прогрессом и запуск установщика. */
 @Composable
-private fun UpdateStatusRow(state: UpdateState, onCheck: () -> Unit, onOpen: (String) -> Unit) {
-  val text =
-    when (state) {
+private fun UpdateSection(
+  updateState: UpdateState,
+  downloadState: UpdateDownloadState,
+  onCheck: () -> Unit,
+  onDownload: (String) -> Unit,
+  onOpen: (String) -> Unit,
+  onInstall: (File) -> Unit,
+) {
+  val statusText =
+    when (updateState) {
       UpdateState.Idle -> stringResource(R.string.about_update_idle)
       UpdateState.Checking -> stringResource(R.string.about_update_checking)
       UpdateState.UpToDate -> stringResource(R.string.about_update_latest)
       UpdateState.NoReleases -> stringResource(R.string.about_update_none)
-      is UpdateState.Available -> stringResource(R.string.about_update_available, state.version)
-      is UpdateState.Failed -> stringResource(R.string.about_update_failed, state.message)
+      is UpdateState.Available -> stringResource(R.string.about_update_available, updateState.version)
+      is UpdateState.Failed -> stringResource(R.string.about_update_failed, updateState.message)
     }
   Text(
-    text = text,
+    text = statusText,
     style = MaterialTheme.typography.bodySmall,
     color =
-      if (state is UpdateState.Available) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+      if (updateState is UpdateState.Available) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
     modifier = Modifier.padding(top = 8.dp),
   )
+
+  when (val dl = downloadState) {
+    is UpdateDownloadState.Downloading -> {
+      LinearProgressIndicator(
+        progress = { dl.percent / 100f },
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+      )
+      Text(
+        text =
+          if (dl.percent > 0) stringResource(R.string.about_update_downloading, dl.percent)
+          else stringResource(R.string.about_update_downloading_no_size),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    is UpdateDownloadState.Ready ->
+      Text(
+        text = stringResource(R.string.about_update_ready),
+        style = MaterialTheme.typography.bodySmall,
+        color = SuccessGreen,
+        modifier = Modifier.padding(top = 8.dp),
+      )
+    is UpdateDownloadState.Failed ->
+      Text(
+        text = stringResource(R.string.about_update_download_failed, dl.message),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(top = 8.dp),
+      )
+    UpdateDownloadState.Idle -> Unit
+  }
+
   Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    TextButton(onClick = onCheck, enabled = state != UpdateState.Checking) {
+    TextButton(
+      onClick = onCheck,
+      enabled = updateState != UpdateState.Checking && downloadState !is UpdateDownloadState.Downloading,
+    ) {
       Text(stringResource(R.string.about_update_check))
     }
-    if (state is UpdateState.Available) {
-      TextButton(onClick = { onOpen(state.pageUrl) }) {
+    val available = updateState as? UpdateState.Available
+    if (available != null &&
+      downloadState !is UpdateDownloadState.Downloading &&
+      downloadState !is UpdateDownloadState.Ready
+    ) {
+      TextButton(onClick = { available.apkUrl?.let(onDownload) ?: onOpen(available.pageUrl) }) {
         Text(stringResource(R.string.about_update_open))
       }
     }
+  }
+
+  // Как только APK скачан — открываем системный установщик.
+  LaunchedEffect(downloadState) {
+    val ready = downloadState as? UpdateDownloadState.Ready ?: return@LaunchedEffect
+    onInstall(ready.file)
   }
 }
 

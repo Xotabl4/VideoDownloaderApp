@@ -139,6 +139,10 @@
     <string name="about_update_failed">Не удалось проверить: %1$s</string>
     <string name="about_update_check">Проверить обновления</string>
     <string name="about_update_open">Скачать</string>
+    <string name="about_update_downloading">Скачивание обновления… %1$d%%</string>
+    <string name="about_update_downloading_no_size">Скачивание обновления…</string>
+    <string name="about_update_ready">Скачано, открываю установщик…</string>
+    <string name="about_update_download_failed">Не удалось скачать: %1$s</string>
 
     <!-- Строки, которые раньше были зашиты в коде -->
     <string name="conversion_original">Оригинал</string>
