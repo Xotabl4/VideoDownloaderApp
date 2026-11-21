@@ -20,13 +20,11 @@ private const val TAG = "FfmpegRuntime"
  * current -> <версия>                  что используем сейчас
  * ```
  *
- * Почему так: Android 10+ запрещает `execve` файлов из каталога данных приложения
- * (проверено: `error=13, Permission denied`), но разрешает запуск из `nativeLibraryDir`
- * и через `/system/bin/linker64`. Поэтому `bin/ffmpeg` — симлинк на нативный лаунчер
- * [LAUNCHER] из APK (`native/fflaunch.c`, собран как `libffmpeg.so` — то же имя жёстко
- * зашито в youtubedl-android), а тот подменяет процесс на
- * `linker64 <версия>/real/ffmpeg "$@"` с очищенным окружением. Для yt-dlp это
- * неотличимо от обычного ffmpeg, поэтому обновление ffmpeg сводится к распаковке
+ * Android 10+ не разрешает запуск файлов из каталога данных, но разрешает
+ * `nativeLibraryDir` и `/system/bin/linker64`. Поэтому `bin/ffmpeg` это симлинк на
+ * нативный лаунчер [LAUNCHER] из APK (`native/fflaunch.c`, имя `libffmpeg.so` задаёт
+ * youtubedl-android), а лаунчер запускает `linker64 <версия>/real/ffmpeg` с очищенным
+ * окружением. Для yt-dlp это обычный ffmpeg, поэтому обновление сводится к распаковке
  * новой версии и переключению симлинка `current`.
  *
  * Все правки ELF (RUNPATH → `$ORIGIN`, `libc++_shared.so` → [ElfPatch.LIBCXX_RENAMED])

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "Settings"
 
-/** Тема оформления: тёмная — как в концепте, светлая — для дневного использования. */
+/** Тема оформления. */
 enum class AppTheme(val storageValue: String) {
   Dark("dark"),
   Light("light"),
@@ -33,8 +33,7 @@ enum class AppLanguage(val tag: String) {
 }
 
 /**
- * Настройки приложения (аналог `config.ini` с десктопа: `auto_update_ytdlp`).
- * Тема и язык хранятся здесь же, чтобы не заводить ещё один store.
+ * Настройки приложения: автообновление yt-dlp, тема, язык.
  */
 object SettingsStore {
   private const val PREFS = "app_settings"

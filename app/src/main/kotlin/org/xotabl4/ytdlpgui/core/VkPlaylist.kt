@@ -9,15 +9,12 @@ import org.json.JSONObject
 /**
  * Метаданные плейлиста VK, которых нет в `yt-dlp -J`.
  *
- * Для `vk.com/video/playlist/<oid>_<id>` yt-dlp отдаёт `_type=playlist`, но `title` и
- * `playlist_count` = `null`: страница VK собирается скриптами, и экстрактору нечего взять.
- * Зато внутренний AJAX-метод `al_video.php` (его же использует сам экстрактор) отдаёт
- * `total` — реальное число видео — и HTML-карточки с именем владельца. Этого хватает,
- * чтобы назвать подпапку и показать «Плейлист · N видео».
+ * Для `vk.com/video/playlist/<oid>_<id>` yt-dlp отдаёт `_type=playlist`, но `title`
+ * и `playlist_count` пустые: страница собирается скриптами. Внутренний AJAX-метод
+ * `al_video.php` отдаёт `total` и имя владельца, этого хватает для подпапки и счётчика.
  *
- * Там же ловится ответ `code=4` — VK отдаёт `/blank.php?rkn=<id>`, когда страница
- * ограничена по требованию Роскомнадзора. yt-dlp такой ответ не разбирает и падает
- * с `TypeError: string indices must be integers, not 'str'`.
+ * Ответ `code=4` означает ограничение по требованию Роскомнадзора; yt-dlp такой ответ
+ * не разбирает и падает с `TypeError: string indices must be integers`.
  */
 object VkPlaylist {
   /** `vk.com/video/playlist/-174476437_2`, `vkvideo.ru/playlist/-51890028_-2`, `vk.ru/...`. */

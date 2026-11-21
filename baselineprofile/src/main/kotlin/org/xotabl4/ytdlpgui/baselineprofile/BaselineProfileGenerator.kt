@@ -11,11 +11,10 @@ import org.junit.runner.RunWith
 private const val PACKAGE = "org.xotabl4.ytdlpgui"
 
 /**
- * Генератор Baseline Profile для приложения (Фаза 11).
+ * Генератор Baseline Profile.
  *
- * Запуск: `gradlew.bat :app:generateReleaseBaselineProfile` — профиль прогоняется на подключённом
- * устройстве и кладётся в `app/src/release/baseline-prof.txt` (затем устанавливается через
- * `androidx.profileinstaller` в релизной сборке).
+ * Запуск: `gradlew.bat :app:generateReleaseBaselineProfile`. Профиль снимается на подключённом
+ * устройстве и попадает в релизную сборку через androidx.profileinstaller.
  */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {

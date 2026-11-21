@@ -19,8 +19,7 @@ import org.xotabl4.ytdlpgui.R
 import org.xotabl4.ytdlpgui.core.DownloadState
 
 /**
- * Блок прогресса загрузки (десктоп: `CTkProgressBar` + текст + кнопка «Отмена»).
- * Показывает процент, ETA и последнюю строку лога yt-dlp.
+ * Блок прогресса: процент, ETA, последняя строка yt-dlp и кнопка «Отмена».
  */
 @Composable
 fun DownloadProgressBlock(

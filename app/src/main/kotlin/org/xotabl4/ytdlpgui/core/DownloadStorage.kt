@@ -21,7 +21,7 @@ private const val PREFS = "download_storage"
 private const val KEY_TREE_URI = "tree_uri"
 private const val KEY_TREE_LABEL = "tree_label"
 
-/** По умолчанию — системная папка «Загрузки» (без вложенных подпапок), так просил пользователь. */
+/** Папка по умолчанию, если пользователь не выбрал другую. */
 private const val DEFAULT_LABEL = "Download"
 
 /** Куда публикуем готовый файл. */
@@ -31,12 +31,11 @@ data class Destination(val safTreeUri: String?, val label: String)
 data class SavedFile(val title: String, val displayPath: String, val uri: String, val mimeType: String)
 
 /**
- * Порт «сохранить файл рядом с exe» с десктопа: там файл падал в текущий каталог,
- * на Android его надо положить в публичную папку «Загрузки» или в папку, выбранную через SAF.
+ * Сохранение готового файла.
  *
- * Схема: yt-dlp пишет во временный app-каталог (youtubedl-android умеет только реальные пути),
- * затем файл копируется в MediaStore (API 29+), в выбранное дерево SAF либо напрямую в
- * `Download/` (API 24–28).
+ * yt-dlp умеет писать только в реальные пути, поэтому сначала файл появляется во
+ * временном каталоге приложения, а затем копируется в MediaStore (API 29+),
+ * в дерево SAF или в `Download/` (API 24–28).
  */
 object DownloadStorage {
   private val _destination = MutableStateFlow(Destination(null, DEFAULT_LABEL))
@@ -76,10 +75,8 @@ object DownloadStorage {
     File(File(context.cacheDir, "downloads"), sub.orEmpty()).apply { mkdirs() }
 
   /**
-   * Удаляет недокачанные части из временного каталога (или из подкаталога задачи).
-   *
-   * Вызывается, когда пользователь убирает незавершённую загрузку из списка: иначе `.part`-файлы
-   * остаются в `cache/downloads` и занимают память.
+   * Удаляет недокачанные части временного каталога или подкаталога задачи,
+   * чтобы `.part`-файлы не занимали место.
    */
   fun clearTemp(context: Context, sub: String? = null): Long {
     val dir = tempDir(context, sub)
@@ -191,8 +188,8 @@ object DownloadStorage {
     values.clear()
     values.put(MediaStore.Downloads.IS_PENDING, 0)
     resolver.update(uri, values, null, null)
-    // MediaStore при совпадении имени создаёт «Имя (1).ext» — показываем пользователю и
-    // сохраняем в историю фактическое имя, иначе путь в истории не совпадёт с файлом.
+    // MediaStore добавляет «(1)» к совпадающим именам, поэтому фактическое имя
+    // перечитываем из записи: иначе путь в истории разойдётся с файлом.
     val actualName =
       runCatching {
           resolver

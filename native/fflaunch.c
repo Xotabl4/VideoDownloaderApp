@@ -57,14 +57,11 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) args[i + 1] = argv[i];
   args[argc + 1] = NULL;
 
-  /* Окружение делаем чистым. youtubedl-android запускает yt-dlp с LD_LIBRARY_PATH на свой
-   * Python-каталог, где лежит СТАРАЯ libc++_shared.so без нужных символов — унаследованный
-   * LD_LIBRARY_PATH перебивает RUNPATH и ffmpeg падает на
-   * `cannot locate symbol "__from_chars_floating_point"` (libplacebo → libc++).
-   * Свои пути задавать не надо: при установке RUNPATH всех ELF переписан на $ORIGIN,
-   * поэтому линкер сам находит наши библиотеки (проверено на устройстве: без
-   * LD_LIBRARY_PATH ffmpeg 9.0.2 работает, а с нашим lib-каталогом в LD_LIBRARY_PATH —
-   * ломается, т.к. Termux'овский libz.so.1 затеняет системный libz и рушит libunwindstack). */
+  /* Окружение очищаем. youtubedl-android запускает yt-dlp с LD_LIBRARY_PATH на свой
+   * Python-каталог, где лежит старая libc++_shared.so без нужных символов: унаследованный
+   * LD_LIBRARY_PATH перебивает RUNPATH и ffmpeg падает на cannot locate symbol
+   * __from_chars_floating_point. Свои пути задавать не нужно: RUNPATH всех ELF переписан
+   * на $ORIGIN, поэтому линкер сам находит библиотеки сборки. */
   unsetenv("LD_LIBRARY_PATH");
   unsetenv("LD_PRELOAD");
 

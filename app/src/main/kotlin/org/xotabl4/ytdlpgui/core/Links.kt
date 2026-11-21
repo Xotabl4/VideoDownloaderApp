@@ -8,5 +8,6 @@ object Links {
 
   const val REPOSITORY = "https://github.com/$OWNER/$REPO_NAME"
   const val RELEASES = "$REPOSITORY/releases/latest"
+  const val LATEST_RELEASE_API = "https://api.github.com/repos/$OWNER/$REPO_NAME/releases/latest"
   const val LICENSES = "$REPOSITORY/blob/main/LICENSE"
 }

@@ -1,6 +1,7 @@
 package org.xotabl4.ytdlpgui
 
 import android.app.Application
+import org.xotabl4.ytdlpgui.core.AppUpdate
 import org.xotabl4.ytdlpgui.core.CrashLog
 import org.xotabl4.ytdlpgui.core.DownloadStorage
 import org.xotabl4.ytdlpgui.core.DownloadTasks
@@ -10,16 +11,18 @@ import org.xotabl4.ytdlpgui.core.YtDlp
 class App : Application() {
   override fun onCreate() {
     super.onCreate()
-    // Первым делом: падения записываем в файл (filesDir/crash), иначе причину видно только в logcat.
+    // Перехватчик падений ставим до остальной инициализации, иначе причину сбоя не увидеть.
     CrashLog.install(this)
-    // Инициализация Python + yt-dlp асинхронная: первый запуск распаковывает ~50 МБ.
+    // Python и yt-dlp распаковываются в фоне, при первом запуске это около 50 МБ.
     YtDlp.startInit(this)
-    // Восстанавливаем настройки (место сохранения, тема, язык, автообновление yt-dlp).
+    // Настройки из SharedPreferences: папка, тема, язык, автообновление.
     DownloadStorage.refresh(this)
     SettingsStore.refresh(this)
-    // Незавершённые загрузки (отменённые/упавшие) должны оставаться в «Загрузках» после перезапуска.
+    // Список незавершённых загрузок переживает перезапуск приложения.
     DownloadTasks.refresh(this)
-    // Локаль для строк вне Compose (уведомления сервиса, статусы инструментов).
+    // Проверка новой версии в фоне: не чаще раза в 12 часов и без диалогов.
+    AppUpdate.checkOnStart(this)
+    // Локаль для строк вне Compose: уведомления и статусы инструментов.
     SettingsStore.applyLanguage(this, SettingsStore.language.value)
   }
 }

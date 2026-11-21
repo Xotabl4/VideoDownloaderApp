@@ -25,23 +25,23 @@ import org.xotabl4.ytdlpgui.R
 
 private const val TAG = "Download"
 
-/** «Оригинал» — без конвертации (как в десктопном `main.py`). */
+/** «Оригинал»: файл сохраняется без конвертации. */
 private const val NO_CONVERSION = "Оригинал"
 
-/** Подпапка плейлиста, когда ни площадка, ни карточка не дали названия. */
+/** Подпапка плейлиста, если название взять неоткуда. */
 private const val DEFAULT_PLAYLIST_FOLDER = "Playlist"
 
 /**
- * Сколько загрузок идёт одновременно. Каждая — отдельный процесс yt-dlp (Python) плюс
- * возможная склейка ffmpeg, поэтому на телефоне больше двух параллельно смысла нет:
- * остальные задачи ждут свободный слот и показываются как «В очереди…».
+ * Сколько загрузок идёт одновременно. Каждая загрузка это отдельный процесс Python
+ * и, возможно, склейка ffmpeg, поэтому на телефоне хватает двух; остальные ждут
+ * свободного слота и показываются как «В очереди…».
  */
 const val MAX_PARALLEL_DOWNLOADS = 2
 
-/** Цели, для которых десктоп вызывал `yt-dlp -x --audio-format`. */
+/** Цели конвертации, которые выполняются через `-x --audio-format`. */
 private val AUDIO_TARGETS = setOf("mp3", "m4a", "wav", "flac")
 
-/** Состояние загрузки — аналог `progress_callback` из `downloader.download_video()`. */
+/** Состояние загрузки. */
 sealed interface DownloadState {
   data object Idle : DownloadState
 
@@ -188,7 +188,7 @@ object DownloadManager {
     primaryId = taskId
     _activeUrl.value = session.url
 
-    // Задача живёт в «Загрузках» до успеха или удаления пользователем (отмена/ошибка остаются).
+    // Задача остаётся в «Загрузках» до успеха или удаления.
     DownloadTasks.add(
       appContext,
       DownloadTask(
@@ -558,10 +558,7 @@ object DownloadManager {
       it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
     } == true
 
-  /**
-   * Порт `download_video(merge_format=…)` из `downloader.py`:
-   * видео-контейнеры → `--merge-output-format`, аудио → `-x --audio-format`.
-   */
+  /** Конвертация: аудио через `-x --audio-format`, видео через `--merge-output-format`. */
   private fun YoutubeDLRequest.applyConversion(mergeFormat: String?) {
     if (mergeFormat.isNullOrBlank() || mergeFormat == NO_CONVERSION) return
     if (mergeFormat in AUDIO_TARGETS) {
@@ -573,7 +570,7 @@ object DownloadManager {
     Log.i(TAG, "conversion: $mergeFormat")
   }
 
-  /** Без ffmpeg `-x`/склейка падают — проверяем до запуска и говорим об этом пользователю. */
+  /** Без ffmpeg не работают ни `-x`, ни склейка. */
   private fun ffmpegReady(): Boolean =
     (YtDlp.state.value as? YtDlpState.Ready)?.ffmpegVersion != null
 

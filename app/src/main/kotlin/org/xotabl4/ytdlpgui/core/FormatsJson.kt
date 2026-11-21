@@ -3,14 +3,9 @@ package org.xotabl4.ytdlpgui.core
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Разбор `yt-dlp -J` (JSON) в [RawFormat]-список.
- *
- * Аналог десктопного `json.loads(result.stdout)` в `downloader.get_formats()`,
- * только без `subprocess`: JSON приходит в `YoutubeDLResponse.out`.
- */
+/** Разбор JSON от `yt-dlp -J` в список [RawFormat]. */
 object FormatsJson {
-  /** Виды контейнеров yt-dlp, которые ведут себя как плейлист. */
+  /** Типы, которые yt-dlp отдаёт для плейлистов. */
   private val PLAYLIST_TYPES = setOf("playlist", "multi_video")
 
   data class Parsed(
@@ -18,25 +13,21 @@ object FormatsJson {
     val formats: List<RawFormat>,
     val thumbnail: String = "",
     val durationSeconds: Long = 0L,
-    /** Название плейлиста, если ссылка ведёт на плейлист (иначе пусто). */
+    /** Название плейлиста или пустая строка. */
     val playlistTitle: String = "",
-    /** Сколько видео в плейлисте (0 — не плейлист). */
+    /** Число видео, 0 для одиночного. */
     val playlistCount: Int = 0,
-    /** `true`, если `-J` вернул плейлист (`_type=playlist`). */
+    /** `-J` вернул плейлист. */
     val isPlaylist: Boolean = false,
-    /**
-     * URL роликов плейлиста — у первого доступного отдельно запрашиваем форматы
-     * (`--flat-playlist` их не отдаёт). Список нужен, чтобы пережить битый первый ролик.
-     */
+    /** Ссылки на ролики плейлиста: форматы запрашиваются у первого рабочего. */
     val entryUrls: List<String> = emptyList(),
   )
 
   fun parse(json: String): Parsed {
-    // На случай предупреждений/мусора перед JSON — берём от первой `{`.
+    // Перед JSON бывают предупреждения, поэтому начинаем с первой фигурной скобки.
     val body = json.substring(json.indexOf('{').coerceAtLeast(0))
     val root = JSONObject(body)
-    // Плейлист: `-J` отдаёт `_type=playlist` (или `multi_video` для страниц с подборкой)
-    // и `entries` с полными форматами.
+    // Плейлист приходит с _type=playlist или multi_video.
     if (root.optString("_type") in PLAYLIST_TYPES) return parsePlaylist(root)
     val title = root.stringOrNull("title") ?: "Unknown Title"
     val thumbnail = root.stringOrNull("thumbnail").orEmpty()
@@ -46,16 +37,11 @@ object FormatsJson {
     return Parsed(title, formatsFrom(array), thumbnail, durationSeconds)
   }
 
-  /**
-   * Плейлист: название и количество берём из корня, а форматы — из первого видео,
-   * у которого они есть (набор качеств у роликов одинаковый, для выбора этого хватает).
-   * Названия может не быть вовсе (VK кладёт `title=null`), тогда его добирает
-   * `FormatsRepository` — из API RuTube или из `al_video.php` у VK.
-   */
+  /** Плейлист: название и счётчик из корня, форматы из первого ролика с потоками. */
   private fun parsePlaylist(root: JSONObject): Parsed {
     val entries = root.optJSONArray("entries")
     val count = root.longOrNull("playlist_count")?.toInt() ?: entries?.length() ?: 0
-    // RuTube не отдаёт название плейлиста — оставляем пусто, его доберём из API.
+    // Часть площадок не отдаёт название, его добирает FormatsRepository.
     val title = root.stringOrNull("title").orEmpty()
 
     var formats: List<RawFormat> = emptyList()

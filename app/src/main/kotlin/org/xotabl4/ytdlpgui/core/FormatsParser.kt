@@ -3,15 +3,13 @@ package org.xotabl4.ytdlpgui.core
 import java.util.Locale
 
 /**
- * Порт `downloader.get_formats()` (строки 43–157) и `get_resolution_label()` (18–30)
- * из десктопного `downloader.py`. Логика сохранена один в один:
- * категоризация по кодекам, склейка «только видео» + лучшая аудиодорожка,
- * предпочтение mp4/webm при сортировке, человекочитаемые размеры.
+ * Разбор форматов: категории по кодекам, склейка видео с лучшей аудиодорожкой,
+ * сортировка и подписи размеров.
  */
 object FormatsParser {
   private const val NO_CODEC = "none"
 
-  /** Аналог `get_resolution_label(width, height)`. */
+  /** Подпись разрешения, например `1080p FHD`. */
   fun resolutionLabel(width: Int, height: Int): String {
     if (width == 0 && height == 0) return "Unknown"
     val maxDim = maxOf(width, height)
@@ -130,7 +128,7 @@ object FormatsParser {
     audioOnly.sortWith(audioSortDesc)
     videoAudio.sortWith(videoSortDesc)
 
-    // «Лучшее из двух миров»: каждый видеоформат + подходящая аудиодорожка (как в downloader.py 112–150)
+    // Каждый видеоформат дополняется подходящей аудиодорожкой.
     val combinedVideo = mutableListOf<FormatItem>()
     for (item in videoOnly) {
       val bestAudio =
@@ -178,11 +176,10 @@ object FormatsParser {
   }
 
   /**
-   * Один и тот же ролик часто отдаётся несколько раз под разными `format_id` с одинаковыми
-   * качеством/кодеками: RuTube — `default-*`/`m3u8-*`, VK — `dash_sep-*`/`hls_fmp4-*`/`hls-*`
-   * (разница только в битрейте). Ключ — расширение, кодеки, высота, fps и HDR: то, что пользователь
-   * реально выбирает. Для аудио высоты нет, поэтому в ключ входит битрейт — иначе все дорожки
-   * схлопнулись бы в одну. Из группы остаётся поток с большим битрейтом (при равенстве — не HLS).
+   * Убирает повторы: одна и та же дорожка приходит под разными `format_id`
+   * (`default-*`, `m3u8-*`, `dash_sep-*`, `hls-*`) с разницей в битрейте.
+   * Ключ — кодек, высота, fps и HDR, у аудио вместо высоты битрейт.
+   * Из группы остаётся поток с большим битрейтом.
    */
   private fun dedupe(raw: List<RawFormat>): List<RawFormat> {
     val seen = LinkedHashMap<String, RawFormat>()

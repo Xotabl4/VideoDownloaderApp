@@ -37,11 +37,10 @@ private const val ACTION_CANCEL = "org.xotabl4.ytdlpgui.action.CANCEL_DOWNLOAD"
 private const val EXTRA_TASK_ID = "task_id"
 
 /**
- * Foreground service для загрузок (в MVP решено: да).
+ * Foreground-сервис загрузок.
  *
- * Параллельных загрузок может быть несколько, поэтому сервис показывает **по уведомлению
- * на каждую** активную задачу плюс сводное уведомление (оно и есть foreground). Кнопка
- * «Отмена» в уведомлении несёт `taskId`, так что отменяется именно эта загрузка.
+ * На каждую активную задачу своё уведомление, плюс сводное, которое и держит сервис
+ * в foreground. Кнопка «Отмена» несёт taskId, поэтому отменяется конкретная загрузка.
  */
 class DownloadService : Service() {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

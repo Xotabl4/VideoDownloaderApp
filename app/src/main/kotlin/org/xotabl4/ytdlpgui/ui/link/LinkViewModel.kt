@@ -54,12 +54,7 @@ data class FormatSelection(
     }
 }
 
-/**
- * Состояние экрана «ссылка → форматы».
- *
- * На десктопе это делали `threading.Thread` + `self.after(...)` из `main.py`
- * (там же был баг с обращением к UI из фонового потока) — здесь `StateFlow` + корутины.
- */
+/** Состояние экрана «ссылка → форматы». */
 sealed interface LinkUiState {
   data object Idle : LinkUiState
 
@@ -82,7 +77,7 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
   private val _category = MutableStateFlow(FormatCategory.VideoAudio)
   val category: StateFlow<FormatCategory> = _category.asStateFlow()
 
-  /** Что выбрано в каждой категории (десктоп: radio-кнопка в списке). */
+  /** Выбранный формат в каждой категории. */
   private val _selection = MutableStateFlow(FormatSelection())
   val selection: StateFlow<FormatSelection> = _selection.asStateFlow()
 
@@ -123,12 +118,12 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
   fun selectCategory(category: FormatCategory) {
     if (_category.value != category) {
       _category.value = category
-      // Десктоп при смене категории сбрасывал «Конвертировать в» на «Оригинал» (main.py:358).
+      // При смене категории конвертация сбрасывается в «Оригинал».
       _conversion.value = ORIGINAL_FORMAT
     }
   }
 
-  /** «Конвертировать в» (main.py: `format_option`). */
+  /** Цель конвертации. */
   private val _conversion = MutableStateFlow(ORIGINAL_FORMAT)
   val conversion: StateFlow<String> = _conversion.asStateFlow()
 

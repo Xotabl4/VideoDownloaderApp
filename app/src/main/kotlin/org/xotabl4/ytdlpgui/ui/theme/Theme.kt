@@ -42,7 +42,7 @@ private val DarkColorScheme =
     surfaceVariant = InkSurfaceHigh,
     onSurfaceVariant = TextSecondary,
     outline = InkOutline,
-    // «Светлая пилюля» на тёмном фоне — как в концепте.
+    // Светлая «пилюля» на тёмном фоне.
     inverseSurface = PillBackground,
     inverseOnSurface = PillText,
     error = Color(0xFFFF6B6B),

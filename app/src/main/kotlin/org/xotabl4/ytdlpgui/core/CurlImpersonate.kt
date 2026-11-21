@@ -10,17 +10,14 @@ import java.util.zip.ZipInputStream
 private const val TAG = "CurlImpersonate"
 
 /**
- * Установка `curl_cffi` (impersonation TLS/HTTP2) в Python-дерево youtubedl-android.
+ * Установка `curl_cffi` в Python-дерево youtubedl-android.
  *
- * Зачем: yt-dlp для `--impersonate` требует модуль `curl_cffi`, которого нет в zipapp.
- * Собрано отдельно (BoringSSL + curl-impersonate под arm64) и положено в APK:
- * - `jniLibs/arm64-v8a/libcurl-impersonate.so`, `libcxxff.so` (свой libc++, чтобы не
- *   столкнуться со старой `libc++_shared.so` из youtubedl-android — тот же приём, что в [ElfPatch]);
- * - `assets/curl_cffi.zip` — python-пакет + `_wrapper.cpython-312.so` (ABI совпадает с
- *   Python 3.12 из библиотеки: `SOABI=cpython-312`).
+ * `--impersonate` в yt-dlp без этого модуля не работает. Сборка лежит в APK:
+ * `jniLibs/arm64-v8a/libcurl-impersonate.so` со своим `libcxxff.so` и
+ * `assets/curl_cffi.zip` (пакет, `_wrapper.cpython-312.so`, `cffi`, `certifi`).
  *
- * Пакет распаковывается в `site-packages` уже распакованного Python: zipimport не умеет
- * грузить бинарные расширения, поэтому `curl_cffi` должен лежать файлами на диске.
+ * Распаковка идёт в `site-packages` уже развёрнутого Python: zipimport не умеет
+ * загружать бинарные расширения, файлы должны лежать на диске.
  */
 object CurlImpersonate {
   private const val ASSET = "curl_cffi.zip"
@@ -83,9 +80,8 @@ object CurlImpersonate {
   }
 
   /**
-   * Аварийный выключатель: пока `import curl_cffi` в бандл-Python не подтверждён на устройстве,
-   * `--impersonate` нельзя передавать — yt-dlp падает с `target "chrome" is not available`
-   * и ломает обычные ссылки (проверено 14.11.2026). Включать после отладки импорта.
+   * Выключатель impersonation: без рабочего curl_cffi запрос падает
+   * с ошибкой `target "chrome" is not available`. Включать после проверки импорта.
    */
   private const val ENABLED = true
 

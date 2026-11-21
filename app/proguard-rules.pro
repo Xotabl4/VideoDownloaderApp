@@ -8,8 +8,8 @@
 -dontwarn com.yausername.**
 
 # --- Apache Commons Compress ---
-# youtubedl-common распаковывает Python-zip через ArchiveStreamFactory/ServiceLoader:
-# при обфускации падает с «class j7.a is not a concrete class» (проверено на устройстве).
+# Распаковка Python-zip идёт через ArchiveStreamFactory и ServiceLoader;
+# при обфускации падает с «class j7.a is not a concrete class».
 -keep class org.apache.commons.compress.** { *; }
 -dontwarn org.apache.commons.compress.**
 
@@ -35,15 +35,14 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
-# --- нативные/рефлексивные точки входа ---
-# Kotlin-объекты (DownloadManager, YtDlp, FfmpegRuntime…) держим целиком: на них ссылаются
-# имена классов в логах и в javа-обёртках библиотек.
+# --- нативные и рефлексивные точки входа ---
+# Объекты ядра держим целиком: на их имена ссылаются логи и обёртки библиотек.
 -keep class org.xotabl4.ytdlpgui.core.** { *; }
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
 
-# Compose сам поставляет правила; эти атрибуты нужны для корректной работы UI-тулинга и логов.
+# Compose поставляет свои правила; эти атрибуты нужны для читаемых стектрейсов.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

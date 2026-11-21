@@ -19,11 +19,11 @@ import org.xotabl4.ytdlpgui.core.PhHarvest
 private const val TAG = "PhHarvest"
 
 /**
- * Скрытое окно-«харвестер»: открывает embed-страницу PornHub в реальном WebView, ставит cookies
- * подтверждения возраста и забирает из `flashvars.mediaDefinitions` список качеств
- * (от лучшего к худшему). Окно прозрачное, WebView вынесен за пределы экрана — ничего не видно.
+ * Скрытое окно-харвестер: открывает страницу PornHub в реальном WebView, ставит cookies
+ * подтверждения возраста и забирает качества из `flashvars.mediaDefinitions`.
  *
- * Headless-WebView не подходит: без реального окна скрипты PH не отдают ссылки (проверено).
+ * Окно прозрачное и вынесено за пределы экрана. Headless-WebView не подходит: без
+ * реального окна скрипты сайта ссылки не отдают.
  */
 class PhHarvestActivity : Activity() {
   private var webView: WebView? = null
@@ -55,7 +55,7 @@ class PhHarvestActivity : Activity() {
         settings.mediaPlaybackRequiresUserGesture = true
         settings.javaScriptCanOpenWindowsAutomatically = true
         settings.userAgentString = PhCookies.USER_AGENT
-        // Невидимо для пользователя, но с реальным размером: иначе PH не отдаёт ссылки.
+        // Окно невидимое, но с реальным размером: иначе сайт не отдаёт ссылки.
         alpha = 0f
         translationY = 20_000f
         webViewClient =
@@ -163,7 +163,7 @@ class PhHarvestActivity : Activity() {
     runCatching { webView?.stopLoading() }
     runCatching { webView?.destroy() }
     webView = null
-    // Возвращаем пользователя в приложение: харвестер запускается отдельной задачей.
+    // Возвращаем MainActivity на передний план: харвестер работает в отдельной задаче.
     runCatching {
       startActivity(
         android.content.Intent(this, org.xotabl4.ytdlpgui.MainActivity::class.java)

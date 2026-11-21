@@ -17,18 +17,13 @@ private const val TAG = "Formats"
 /** `https://rutube.ru/plst/443570/` → `443570`. */
 private val RUTUBE_PLAYLIST_REGEX = Regex("""rutube\.ru/plst/(\d+)""")
 
-/**
- * Замена `downloader.get_formats(url)`:
- * десктоп запускал `bin\yt-dlp.exe -J <url>` через `subprocess`,
- * здесь то же самое делает `YoutubeDL.execute(request)`.
- */
+/** Форматы по ссылке: `yt-dlp -J`, разбор JSON и категоризация. */
 object FormatsRepository {
   suspend fun fetch(context: Context, url: String): Formats =
     withContext(Dispatchers.IO) {
-      // Сайты с DRM (Кинопоиск, Okko, Netflix…) даже не пробуем — сразу объясняем причину.
+      // Сайты с DRM не пробуем, сразу объясняем причину.
       DownloadErrors.unsupportedSite(context, url)?.let { throw IllegalStateException(it) }
-      // PornHub требует impersonation (curl_cffi), которого нет в бандле: качества и прямые
-      // ссылки забираем из скрытого WebView и отдаём их пользователю списком.
+      // PornHub закрыт антибот-защитой: качества и прямые ссылки забирает скрытый WebView.
       if (PhCookies.isPornHub(url)) {
         val result = PhHarvest.resolveAll(context, url)
         if (result.variants.isEmpty()) {

@@ -45,14 +45,10 @@ sealed interface YtDlpState {
 }
 
 /**
- * Единая точка доступа к [YoutubeDL] и [FFmpeg].
+ * Точка доступа к [YoutubeDL] и [FFmpeg].
  *
- * Десктопный аналог: `main.py` вызывал `subprocess` с `bin\yt-dlp.exe` и `bin\ffmpeg.exe`,
- * `updater.py` брал версию через `--version`. На Android этот контракт дают youtubedl-android
- * ([YoutubeDL.init]) и модуль ffmpeg ([FFmpeg.init]).
- *
- * Важно: `YoutubeDL.version(context)`/`versionName(context)` читают SharedPreferences, которые заполняет
- * только апдейтер (Фаза 7), поэтому у бандл-версии там `null` — версию спрашиваем у самого бинаря.
+ * Версию спрашиваем у самого бинаря: `YoutubeDL.version(context)` читает SharedPreferences,
+ * которые заполняет только апдейтер, и для вшитой сборки отдаёт null.
  */
 object YtDlp {
   /** Версия yt-dlp, вшитая в APK (`assets/ytdlp`) — эталон для цветового индикатора. */
@@ -284,17 +280,14 @@ object YtDlp {
   }
 
   /**
-   * `yt-dlp --version` через встроенный Python. Бросает исключение, если бинарь не запускается —
-   * именно этот вызов доказывает, что Python/yt-dlp реально работают на устройстве.
+   * `yt-dlp --version` через встроенный Python. Если бинарь не запускается,
+   * исключение покажет это лучше любого лога.
    */
   /**
-   * Ставит встроенный yt-dlp из `assets/ytdlp` поверх того, что лежит в AAR.
-   *
-   * Причина: бандл youtubedl-android 0.18.1 = yt-dlp 2025.11.12 (на 08.11.2026 старше 90 дней),
-   * YouTube отдаёт такому клиенту `HTTP 403` на большинство потоков. `updateYoutubeDL()` не годится —
-   * он качает с GitHub, а тот недоступен. Поэтому zipapp собирается из PyPI-пакета `yt-dlp`
-   * (+ `yt-dlp-ejs` для JS-челленджей YouTube) и едет внутри APK.
-   * Обновление версии = заменить `app/src/main/assets/ytdlp` и [BUNDLED_YTDLP_VERSION].
+   * Ставит yt-dlp из `assets/ytdlp` вместо версии из AAR: сборка 2025.11.12 слишком
+   * старая, YouTube отвечает на неё 403. Готовый zipapp собран из PyPI-пакетов
+   * `yt-dlp` и `yt-dlp-ejs`, потому что `updateYoutubeDL()` качает с GitHub.
+   * Для обновления достаточно заменить asset и [BUNDLED_YTDLP_VERSION].
    */
   private fun installBundledYtDlp(appContext: Context, force: Boolean = false) {
     // Библиотека запускает именно этот путь (см. Bytecode init(): ytdlpDir = noBackup/youtubedl-android/yt-dlp).

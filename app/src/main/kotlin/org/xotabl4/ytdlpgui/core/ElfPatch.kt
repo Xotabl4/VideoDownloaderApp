@@ -1,23 +1,16 @@
 package org.xotabl4.ytdlpgui.core
 
 /**
- * Правки ELF-файлов сборки ffmpeg из Termux, которые делаются **при установке** —
- * поэтому они автоматически применяются и к вшитой версии из `assets/ffmpeg9`,
- * и к любой версии, скачанной апдейтером из репозитория Termux.
+ * Правки ELF сборки ffmpeg из Termux. Делаются при установке, поэтому одинаково
+ * применяются к вшитой версии и к скачанной апдейтером.
  *
- * Две правки:
- * 1. `RUNPATH` Termux (`/data/data/com.termux/files/usr/lib`) → `$ORIGIN`-путь.
- *    Такого каталога у нас нет, а `LD_LIBRARY_PATH` для приложений ненадёжен.
- * 2. `libc++_shared.so` → [LIBCXX_RENAMED] в `DT_NEEDED` и `DT_SONAME`.
- *    Причина: youtubedl-android запускает yt-dlp с `LD_LIBRARY_PATH` на свой Python-каталог,
- *    где лежит **старая** `libc++_shared.so` (1,25 МБ) без символа
- *    `__from_chars_floating_point`. Линкер при совпадении soname переиспользует уже
- *    загруженную библиотеку и `LIBRARY_PATH` имеет приоритет над `RUNPATH` — в итоге
- *    `libplacebo.so.387` остаётся с неразрешённым символом и склейка/конвертация падают.
- *    Уникальное имя убирает саму возможность такой коллизии, независимо от окружения.
+ * 1. `RUNPATH` Termux (`/data/data/com.termux/files/usr/lib`) меняется на `$ORIGIN`-путь.
+ * 2. `libc++_shared.so` переименовывается в [LIBCXX_RENAMED] в `DT_NEEDED` и `DT_SONAME`.
+ *    youtubedl-android запускает yt-dlp с `LD_LIBRARY_PATH` на свой Python-каталог, где
+ *    лежит старая libc++ без символа `__from_chars_floating_point`; линкер переиспользует
+ *    её по soname, и склейка падает. Уникальное имя убирает такую коллизию.
  *
- * Обе замены делаются «на месте» (new не длиннее old), хвост строки забивается нулями:
- * строка в `.dynstr` всё равно NUL-терминирована, размер файла не меняется.
+ * Обе замены идут «на месте»: новая строка не длиннее старой, хвост забивается нулями.
  */
 internal object ElfPatch {
   const val TERMUX_RUNPATH = "/data/data/com.termux/files/usr/lib"

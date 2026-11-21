@@ -4,11 +4,11 @@ import android.content.Context
 import org.xotabl4.ytdlpgui.R
 
 /**
- * Единый перевод технических ошибок yt-dlp в понятные фразы на языке приложения.
+ * Перевод технических ошибок yt-dlp в понятные фразы на языке приложения.
  *
- * Зачем: yt-dlp отдаёт вещи вида `ERROR: [youtube] xyz: Sign in to confirm your age`,
- * `Unsupported URL`, `[Errno 103] Software caused connection abort`. Показывать это
- * пользователю бессмысленно — здесь мы раскладываем такие строки по категориям.
+ * yt-dlp отдаёт строки вида `ERROR: [youtube] xyz: Sign in to confirm your age`,
+ * `Unsupported URL` или `[Errno 103] ...`. Показывать их как есть бессмысленно,
+ * поэтому здесь они раскладываются по категориям.
  */
 object DownloadErrors {
   /** Домены, где скачивание невозможно (DRM/закрытый сервис) — отвечаем, не запуская yt-dlp. */
@@ -160,7 +160,7 @@ object DownloadErrors {
   }
 
   private fun shorten(text: String): String {
-    // Убираем технические префиксы вида `[youtube] 1234:` — пользователю они не нужны.
+    // Убираем технические префиксы вида `[youtube] 1234:`.
     val cleaned = text.replace(Regex("""^\[[^\]]+]\s*[^:]{0,64}:\s*"""), "")
     return if (cleaned.length <= 180) cleaned else cleaned.take(177) + "…"
   }

@@ -91,10 +91,9 @@ import org.xotabl4.ytdlpgui.ui.DownloadProgressBlock
 import org.xotabl4.ytdlpgui.ui.rememberNotificationPermissionRequester
 
 /**
- * Экран «вставь ссылку → выбери формат».
+ * Экран «ссылка → формат → загрузка».
  *
- * Десктоп (`main.py`): поле URL с автопоиском, три кнопки категорий, `CTkScrollableFrame` с радио-кнопками
- * и tooltip по наведению. Здесь: `OutlinedTextField`, `TabRow`, `LazyColumn`, подпись под выбранным форматом.
+ * Поле ссылки, кнопка получения форматов, категории, список качеств и блок прогресса.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,8 +127,8 @@ fun LinkScreen(
       .onFailure { Log.w("LinkScreen", "Нет приложения для ${done.mimeType}", it) }
   }
 
-  // Пока форматов нет — окно ввода стоит по центру вкладки, как в концепте;
-  // когда форматы получены, страница становится обычным скроллом сверху.
+  // Пока форматов нет, окно ввода стоит по центру вкладки; после загрузки списка
+  // страница становится обычным скроллом сверху.
   val centered = state !is LinkUiState.Success
 
   Box(modifier = modifier.fillMaxSize()) {
@@ -138,7 +137,7 @@ fun LinkScreen(
         Modifier.fillMaxWidth()
           .align(if (centered) Alignment.Center else Alignment.TopCenter)
           .then(if (centered) Modifier else Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
-          // Тап вне поля ввода закрывает клавиатуру (в концепте она не должна «съедать» экран).
+          // Тап вне поля ввода закрывает клавиатуру.
           .pointerInput(Unit) { detectTapGestures(onTap = { keyboardController?.hide() }) }
           .padding(horizontal = 16.dp)
     ) {
@@ -148,18 +147,15 @@ fun LinkScreen(
       onUrlChange = viewModel::onUrlChange,
       onClear = {
         viewModel.onClear()
-        // Крестик не только чистит ссылку, но и возвращает экран в исходный вид:
-        // без фокуса и с закрытой клавиатурой.
+        // Крестик чистит ссылку и возвращает экран в исходный вид.
         focusManager.clearFocus()
         keyboardController?.hide()
       },
       onFetch = viewModel::fetch,
     )
-    // Загрузку можно запустить и без форматов (например, «Повторить» из библиотеки) —
-    // тогда прогресс показываем здесь, иначе о ней напоминала бы только шторка.
-    // Активную загрузку показываем всегда; результат («Готово»/ошибка) — только пока он
-    // относится к ссылке в поле. Как только пользователь начал менять ссылку, старый
-    // результат прячем: сама загрузка никуда не девается, она есть в «Загрузках».
+    // Загрузка может идти и без полученных форматов, например после «Повторить»
+    // из библиотеки, поэтому прогресс показывается и здесь. Активная загрузка видна
+    // всегда, результат только пока ссылка в поле не изменилась.
     val showsDownload =
       downloadState is DownloadState.Running ||
         (downloadState !is DownloadState.Idle && downloadUrl == url.trim())

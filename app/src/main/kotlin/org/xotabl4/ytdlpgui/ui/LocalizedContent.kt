@@ -13,16 +13,14 @@ import java.util.Locale
 import org.xotabl4.ytdlpgui.core.AppLanguage
 
 /**
- * Подменяет локаль для всего Compose-дерева: `stringResource` читает строки из контекста,
- * созданного с выбранным языком, поэтому переключение RU/EN в настройках применяется сразу,
- * без перезапуска приложения и без AppCompat.
+ * Подменяет локаль для всего дерева Compose: строки читаются из контекста с выбранным языком,
+ * поэтому переключение RU/EN применяется без перезапуска приложения.
  */
 @Composable
 fun LocalizedContent(language: AppLanguage, content: @Composable () -> Unit) {
   val base = LocalContext.current
-  // Эти владельцы обычно вычисляются из LocalContext; после подмены контекста их нужно
-  // передать дальше явно, иначе `rememberLauncherForActivityResult` падает
-  // с «No ActivityResultRegistryOwner was provided».
+  // Владельцы берутся из LocalContext, после подмены их нужно передать явно,
+  // иначе rememberLauncherForActivityResult падает с No ActivityResultRegistryOwner.
   val registryOwner = LocalActivityResultRegistryOwner.current
   val lifecycleOwner = LocalLifecycleOwner.current
   val locale = remember(language) { Locale.forLanguageTag(language.tag) }

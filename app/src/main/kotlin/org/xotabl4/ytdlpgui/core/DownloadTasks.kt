@@ -11,7 +11,7 @@ private const val TAG = "DownloadTasks"
 private const val PREFS = "download_tasks"
 private const val KEY_ENTRIES = "entries"
 
-/** РЎС‚Р°С‚СѓСЃ РЅРµР·Р°РІРµСЂС€С‘РЅРЅРѕР№ Р·Р°РіСЂСѓР·РєРё. РЈСЃРїРµС€РЅС‹Рµ СЃСЋРґР° РЅРµ РїРѕРїР°РґР°СЋС‚ вЂ” РёС… РїРѕРєР°Р·С‹РІР°РµС‚ РёСЃС‚РѕСЂРёСЏ. */
+/** Статус незавершённой загрузки. */
 enum class TaskStatus(val storage: String) {
   Running("running"),
   Canceled("canceled"),
@@ -22,7 +22,7 @@ enum class TaskStatus(val storage: String) {
   }
 }
 
-/** РћС‚РјРµРЅС‘РЅРЅР°СЏ, СѓРїР°РІС€Р°СЏ РёР»Рё РёРґСѓС‰Р°СЏ Р·Р°РіСЂСѓР·РєР°: РѕСЃС‚Р°С‘С‚СЃСЏ РІ В«Р—Р°РіСЂСѓР·РєР°С…В», РїРѕРєР° РµС‘ РЅРµ СѓРґР°Р»СЏС‚. */
+/** Отменённая, упавшая или идущая загрузка: остаётся в «Загрузках» до удаления. */
 data class DownloadTask(
   val id: String,
   val title: String,
@@ -42,12 +42,10 @@ data class DownloadTask(
 )
 
 /**
- * РЎРїРёСЃРѕРє РЅРµР·Р°РІРµСЂС€С‘РЅРЅС‹С… Р·Р°РіСЂСѓР·РѕРє (РІ РѕС‚Р»РёС‡РёРµ РѕС‚ [DownloadHistory], РіРґРµ С‚РѕР»СЊРєРѕ СѓСЃРїРµС€РЅС‹Рµ).
+ * Незавершённые загрузки: идущие, отменённые и упавшие. Успешные хранит [DownloadHistory].
  *
- * Р Р°РЅСЊС€Рµ РѕС‚РјРµРЅР°/РѕС€РёР±РєР° РїСЂРѕСЃС‚Рѕ РёСЃС‡РµР·Р°Р»Р° СЃ СЌРєСЂР°РЅР° вЂ” С‚РµРїРµСЂСЊ С‚Р°РєРёРµ Р·Р°РіСЂСѓР·РєРё РѕСЃС‚Р°СЋС‚СЃСЏ
- * РІРѕ РІРєР»Р°РґРєР°С… В«Р’СЃРµВ» Рё В«Р—Р°РіСЂСѓР·РєР°В» СЃ РєРЅРѕРїРєР°РјРё В«РџРѕРІС‚РѕСЂРёС‚СЊВ» Рё В«РЈРґР°Р»РёС‚СЊВ». РҐСЂР°РЅРёС‚СЃСЏ РІ
- * `SharedPreferences` С‚РµРј Р¶Рµ TSV-С„РѕСЂРјР°С‚РѕРј, С‡С‚Рѕ Рё РёСЃС‚РѕСЂРёСЏ; РїСЂРѕРіСЂРµСЃСЃ РїРёС€РµС‚СЃСЏ РІ РїР°РјСЏС‚СЊ С‡Р°СЃС‚Рѕ,
- * Р° РЅР° РґРёСЃРє вЂ” С‚РѕР»СЊРєРѕ РїСЂРё СЃРјРµРЅРµ СЃС‚Р°С‚СѓСЃР° (С‡С‚РѕР±С‹ РЅРµ РґС‘СЂРіР°С‚СЊ I/O).
+ * Данные лежат в SharedPreferences в том же TSV-формате, что история. Прогресс
+ * обновляется в памяти, на диск попадает только смена статуса.
  */
 object DownloadTasks {
   const val LIMIT = 30
@@ -63,7 +61,7 @@ object DownloadTasks {
   fun refresh(context: Context) {
     if (loaded) return
     val raw = prefs(context).getString(KEY_ENTRIES, null).orEmpty()
-    // Р—Р°РїРёСЃСЊ РІ СЃС‚Р°С‚СѓСЃРµ Running РїРѕСЃР»Рµ РїРµСЂРµР·Р°РїСѓСЃРєР° РѕР·РЅР°С‡Р°РµС‚, С‡С‚Рѕ РїСЂРѕС†РµСЃСЃ Р·Р°РіСЂСѓР·РєРё Р±С‹Р» СѓР±РёС‚ СЃРёСЃС‚РµРјРѕР№.
+    // Запись в статусе Running после перезапуска означает, что процесс загрузки был убит системой.
     _entries.value =
       decode(raw).map {
         if (it.status == TaskStatus.Running) {
@@ -75,7 +73,7 @@ object DownloadTasks {
     loaded = true
   }
 
-  /** Р РµРіРёСЃС‚СЂРёСЂСѓРµС‚ РЅРѕРІСѓСЋ Р·Р°РіСЂСѓР·РєСѓ (РёР»Рё РѕР±РЅРѕРІР»СЏРµС‚ СЃСѓС‰РµСЃС‚РІСѓСЋС‰СѓСЋ СЃ С‚РµРј Р¶Рµ id). */
+  /** Регистрирует новую загрузку (или обновляет существующую с тем же id). */
   fun add(context: Context, task: DownloadTask) {
     synchronized(lock) {
       ensureLoaded(context)
@@ -84,7 +82,7 @@ object DownloadTasks {
     }
   }
 
-  /** РџСЂРѕРіСЂРµСЃСЃ РѕР±РЅРѕРІР»СЏРµРј С‚РѕР»СЊРєРѕ РІ РїР°РјСЏС‚Рё: РєРѕР»Р±СЌРєРё yt-dlp РїСЂРёС…РѕРґСЏС‚ РЅРµСЃРєРѕР»СЊРєРѕ СЂР°Р· РІ СЃРµРєСѓРЅРґСѓ. */
+  /** Прогресс обновляем только в памяти: колбэки yt-dlp приходят несколько раз в секунду. */
   fun progress(id: String, percent: Int) {
     synchronized(lock) {
       val current = _entries.value.firstOrNull { it.id == id } ?: return
@@ -173,7 +171,7 @@ object DownloadTasks {
 
   private fun persist(context: Context) {
     runCatching { prefs(context).edit().putString(KEY_ENTRIES, encode(_entries.value)).apply() }
-      .onFailure { Log.w(TAG, "РЅРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ Р·Р°РґР°С‡Рё: ${it.message}") }
+      .onFailure { Log.w(TAG, "не удалось сохранить задачи: ${it.message}") }
   }
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -205,7 +203,7 @@ object DownloadTasks {
   }
 
 
-  /** РЈСЃРїРµС€РЅР°СЏ Р·Р°РіСЂСѓР·РєР° СѓС…РѕРґРёС‚ РІ РёСЃС‚РѕСЂРёСЋ вЂ” РёР· РЅРµР·Р°РІРµСЂС€С‘РЅРЅС‹С… РµС‘ СѓР±РёСЂР°РµРј. */
+  /** Успешная загрузка уходит в историю — из незавершённых её убираем. */
   fun complete(context: Context, id: String) = remove(context, id)
 
   fun remove(context: Context, id: String) {

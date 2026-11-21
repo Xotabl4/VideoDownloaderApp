@@ -5,10 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Флаг плейлиста в истории и в списке задач: без него «Повторить» качало плейлист
- * как одиночное видео — в корень «Загрузок» и без подпапки (§13 п.5).
+ * Флаг плейлиста в истории и задачах: без него «Повторить» качало плейлист как одно видео.
  *
- * `encode`/`decode` — чистые функции, поэтому проверяются в JVM-тестах.
+ * encode и decode чистые, поэтому проверяются в JVM-тестах.
  */
 class PlaylistFlagsTest {
   @Test
@@ -39,7 +38,7 @@ class PlaylistFlagsTest {
 
   @Test
   fun `old history record without playlist fields decodes as single video`() {
-    // Формат до §13 п.5: 12 полей, без isPlaylist/playlistTitle.
+    // Старая запись: 12 полей, без isPlaylist и playlistTitle.
     val old = listOf("1", "1700000000000", "10", "video/mp4", "Видео", "Download/a.mp4", "content://x", "", "", "", "", "0")
     val decoded = DownloadHistory.decode(old.joinToString("\t")).single()
     assertEquals(false, decoded.isPlaylist)

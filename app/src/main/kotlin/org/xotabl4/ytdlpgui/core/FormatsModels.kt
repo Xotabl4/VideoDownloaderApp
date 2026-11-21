@@ -1,13 +1,6 @@
 package org.xotabl4.ytdlpgui.core
 
-/**
- * Один формат из `yt-dlp -J` в «сыром» виде.
- *
- * Соответствует полям, которые читает `get_formats()` в `downloader.py`:
- * `format_id, ext, vcodec, acodec, filesize/filesize_approx, width, height, tbr`.
- * Отдельный слой нужен, чтобы парсер (`FormatsParser`) был чистым Kotlin-кодом
- * и проверялся юнит-тестами без Android/org.json.
- */
+/** Формат из `yt-dlp -J` до обработки. Поля совпадают с ключами JSON. */
 data class RawFormat(
   val formatId: String?,
   val ext: String?,
@@ -18,15 +11,15 @@ data class RawFormat(
   val width: Int?,
   val height: Int?,
   val tbr: Double?,
-  /** Кадры в секунду (VK/YouTube отдают `30`, `60`, у HLS — `30.0`). */
+  /** Кадры в секунду, у HLS бывает дробным. */
   val fps: Double? = null,
-  /** `SDR` / `HDR10` / `HLG` и т.п. — нужно, чтобы не путать два 2160p между собой. */
+  /** SDR, HDR10, HLG и подобное. */
   val dynamicRange: String? = null,
-  /** `format_note` yt-dlp: «DASH video», «Audio, high», «HDR»… */
+  /** Подпись потока из yt-dlp (`format_note`). */
   val formatNote: String? = null,
 )
 
-/** Готовый элемент списка форматов (аналог `item` из `downloader.py`). */
+/** Формат, готовый к показу в списке. */
 data class FormatItem(
   val formatId: String?,
   val shortDesc: String,
@@ -41,30 +34,26 @@ data class FormatItem(
   val rawFilesize: Long,
   val vcodecShort: String,
   val acodecShort: String,
-  /** `0.0` — источник не сообщил. */
+  /** 0.0, если источник не сообщил. */
   val fps: Double = 0.0,
-  /** `""` — источник не сообщил; иначе `SDR`, `HDR10`, … */
+  /** Пусто, если источник не сообщил. */
   val dynamicRange: String = "",
 )
 
-/** Результат разбора: три категории, как в десктопной версии, + данные для карточки в библиотеке. */
+/** Результат разбора: категории форматов и данные для карточки в библиотеке. */
 data class Formats(
   val title: String,
   val videoAudio: List<FormatItem>,
   val videoOnly: List<FormatItem>,
   val audioOnly: List<FormatItem>,
-  /** URL миниатюры из `yt-dlp -J` (может быть пустым). */
+  /** Миниатюра из метаданных, может быть пустой. */
   val thumbnail: String = "",
-  /** Длительность в секундах — для таймкода на превью. */
+  /** Длительность для таймкода на превью. */
   val durationSeconds: Long = 0L,
-  /** Название плейлиста, если ссылка ведёт на плейлист (иначе пусто). */
+  /** Название плейлиста или пустая строка. */
   val playlistTitle: String = "",
-  /** Сколько видео в плейлисте (0 — не плейлист). */
+  /** Число видео в плейлисте, 0 для одиночного. */
   val playlistCount: Int = 0,
-  /**
-   * Ссылка ведёт на плейлист. Отдельный флаг нужен потому, что не все площадки
-   * отдают название (VK: `title=null`) — по пустому [playlistTitle] плейлист
-   * не отличить от одиночного видео.
-   */
+  /** Ссылка ведёт на плейлист. Отдельный флаг нужен, потому что название есть не у всех площадок. */
   val isPlaylist: Boolean = false,
 )

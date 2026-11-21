@@ -27,8 +27,7 @@ class MainActivity : ComponentActivity() {
       val language by SettingsStore.language.collectAsStateWithLifecycle()
       val dark = theme == AppTheme.Dark
 
-      // Иконки системных панелей должны быть светлыми на тёмной теме и наоборот —
-      // иначе в светлой теме время и батарея сливаются с фоном.
+      // Иконки системных панелей подстраиваются под текущую тему.
       LaunchedEffect(dark) {
         enableEdgeToEdge(
           statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },

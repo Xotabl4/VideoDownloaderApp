@@ -5,13 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Проверяет порт `downloader.get_formats()` / `get_resolution_label()` на тех же правилах,
- * что в десктопном Python-коде (категоризация, склейка с аудио, сортировки, формат размеров).
+ * Проверяет разбор форматов: категории, склейку с аудио, сортировки и подписи размеров.
  */
 class FormatsParserTest {
 
   @Test
-  fun `resolution label follows desktop thresholds`() {
+  fun `resolution label uses known presets`() {
     assertEquals("Unknown", FormatsParser.resolutionLabel(0, 0))
     assertEquals("2160p 4K", FormatsParser.resolutionLabel(3840, 2160))
     assertEquals("1440p HD", FormatsParser.resolutionLabel(2560, 1440))
@@ -37,10 +36,10 @@ class FormatsParserTest {
     val formats = FormatsParser.build("Test video", sampleFormats())
 
     assertEquals("Test video", formats.title)
-    // «Только видео» и «Только аудио» — как есть, с сортировкой десктопа (mp4 > webm, m4a > webm).
+    // Только видео и только аудио идут как есть, mp4 выше webm, m4a выше webm.
     assertEquals(listOf("137", "248"), formats.videoOnly.map { it.formatId })
     assertEquals(listOf("140", "251"), formats.audioOnly.map { it.formatId })
-    // «Видео + аудио» — склеенный список (порт combined_video): mp4 (137+140) → нативный mp4 (18) → webm (248+251).
+    // Видео + аудио: склеенный mp4 (137+140), готовый mp4 (18), затем webm (248+251).
     assertEquals(listOf("137+140", "18", "248+251"), formats.videoAudio.map { it.downloadId })
   }
 
@@ -152,8 +151,8 @@ class FormatsParserTest {
         ),
       )
 
-    // Дедупликация: 2160p mp4 схлопнулась в один поток с большим битрейтом (dash_sep-8),
-    // а 1080p 60fps и 1080p 30fps остались разными строками. Порядок — как на десктопе: mp4 выше webm.
+    // 2160p mp4 схлопнулся в поток с большим битрейтом, а 1080p 60fps и 30fps
+    // остались разными строками. Порядок: mp4 выше webm.
     assertEquals(
       listOf("dash_sep-8", "dash_sep-6", "dash_sep-6s", "dash_webm-7"),
       formats.videoOnly.map { it.formatId },

@@ -238,7 +238,7 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
   }
 }
 
-/** Строка табов как в концепте: текст + подчёркивание у выбранного (равные доли ширины). */
+/** Табы библиотеки: подпись и подчёркивание у выбранного. */
 @Composable
 private fun LibraryTabs(current: LibraryTab, counts: Map<LibraryTab, Int>, onSelect: (LibraryTab) -> Unit) {
   Row(

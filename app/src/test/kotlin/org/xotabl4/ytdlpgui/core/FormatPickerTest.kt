@@ -63,7 +63,7 @@ class FormatPickerTest {
         item("mp4-720", "mp4", 720, 2000.0, 10),
       )
 
-    // VK-список: mp4 идёт первым в сортировке десктопа, но «Автоматически» обязан взять 4K.
+    // mp4 первый по сортировке, но «Автоматически» обязан взять 4K.
     assertEquals("webm-2160", FormatPicker.best(items)?.formatId)
     assertEquals(
       listOf("webm-2160", "mp4-1080", "mp4-720"),

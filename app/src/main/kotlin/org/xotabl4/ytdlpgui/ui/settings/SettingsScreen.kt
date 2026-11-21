@@ -57,17 +57,16 @@ import org.xotabl4.ytdlpgui.R
 import org.xotabl4.ytdlpgui.core.AppLanguage
 import org.xotabl4.ytdlpgui.core.AppTheme
 import org.xotabl4.ytdlpgui.core.CrashLog
+import org.xotabl4.ytdlpgui.core.AppUpdate
 import org.xotabl4.ytdlpgui.core.DownloadStorage
 import org.xotabl4.ytdlpgui.core.SettingsStore
 import org.xotabl4.ytdlpgui.core.ToolStatus
+import org.xotabl4.ytdlpgui.core.UpdateState
 import org.xotabl4.ytdlpgui.core.YtDlp
 import org.xotabl4.ytdlpgui.core.YtDlpState
 import org.xotabl4.ytdlpgui.ui.theme.SuccessGreen
 
-/**
- * Экран настроек в общем стиле с «Загрузками»: заголовок, карточки-секции, кнопки в ряд.
- * Автообновление yt-dlp переключателем убрано — по просьбе пользователя.
- */
+/** Экран настроек: карточки-секции с параметрами и инструментами. */
 @Composable
 fun SettingsScreen(
   onBack: () -> Unit,
@@ -82,9 +81,10 @@ fun SettingsScreen(
   val destination by DownloadStorage.destination.collectAsStateWithLifecycle()
   val theme by SettingsStore.theme.collectAsStateWithLifecycle()
   val language by SettingsStore.language.collectAsStateWithLifecycle()
+  val updateState by AppUpdate.state.collectAsStateWithLifecycle()
 
-  // Разрешение на работу без оптимизации батареи: пересчитываем при возврате в приложение,
-  // потому что пользователь мог включить его в системных настройках.
+  // Разрешение на работу без оптимизации батареи пересчитывается при возврате в приложение:
+  // его могли включить в системных настройках.
   val lifecycleOwner = LocalLifecycleOwner.current
   var ignoringBattery by remember(context) { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
   DisposableEffect(lifecycleOwner, context) {
@@ -264,6 +264,11 @@ fun SettingsScreen(
         text = stringResource(R.string.about_app_version, appVersion),
         style = MaterialTheme.typography.bodyMedium,
       )
+      UpdateStatusRow(
+        state = updateState,
+        onCheck = { AppUpdate.check(context) },
+        onOpen = { url -> openUrl(context, url) },
+      )
       Text(
         text = stringResource(R.string.about_license),
         style = MaterialTheme.typography.bodyMedium,
@@ -320,11 +325,44 @@ private fun requestIgnoreBatteryOptimizations(context: Context) {
   runCatching { context.startActivity(intent) }.onFailure { Log.w("Settings", "battery intent: ${it.message}") }
 }
 
-/**
- * Подпись кнопки, которая не влезает целиком: медленно «плавает» влево-вправо,
- * чтобы пользователь успел прочитать («Переустановить» в русской локали).
- * Если текст помещается, прокрутки нет.
- */
+/** Строка «проверить обновления» с результатом и переходом на страницу релиза. */
+@Composable
+private fun UpdateStatusRow(state: UpdateState, onCheck: () -> Unit, onOpen: (String) -> Unit) {
+  val text =
+    when (state) {
+      UpdateState.Idle -> stringResource(R.string.about_update_idle)
+      UpdateState.Checking -> stringResource(R.string.about_update_checking)
+      UpdateState.UpToDate -> stringResource(R.string.about_update_latest)
+      UpdateState.NoReleases -> stringResource(R.string.about_update_none)
+      is UpdateState.Available -> stringResource(R.string.about_update_available, state.version)
+      is UpdateState.Failed -> stringResource(R.string.about_update_failed, state.message)
+    }
+  Text(
+    text = text,
+    style = MaterialTheme.typography.bodySmall,
+    color =
+      if (state is UpdateState.Available) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = Modifier.padding(top = 8.dp),
+  )
+  Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    TextButton(onClick = onCheck, enabled = state != UpdateState.Checking) {
+      Text(stringResource(R.string.about_update_check))
+    }
+    if (state is UpdateState.Available) {
+      TextButton(onClick = { onOpen(state.pageUrl) }) {
+        Text(stringResource(R.string.about_update_open))
+      }
+    }
+  }
+}
+
+/** Открывает ссылку во внешнем браузере. */
+private fun openUrl(context: Context, url: String) {
+  val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+  runCatching { context.startActivity(intent) }.onFailure { Log.w("Settings", "open $url: ${it.message}") }
+}
+
+/** Подпись кнопки, которая не влезает: медленно прокручивается влево-вправо. */
 @Composable
 private fun AutoScrollText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
   val scroll = rememberScrollState()
