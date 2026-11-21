@@ -127,9 +127,9 @@ class MainNavigationTest {
 
   @Test
   fun bottomBarOpensLibraryAndSettings() {
-    goToTab("tab-library", "Пока ничего не скачано")
+    goToTab("tab-library", "Все")
     goToTab("tab-settings", "Оформление")
-    rule.onNodeWithText("Лицензия: Apache 2.0").assertExists()
+    rule.onNodeWithText("Лицензия: GPL-3.0").assertExists()
   }
 
   @Test

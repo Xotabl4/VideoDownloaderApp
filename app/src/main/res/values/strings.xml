@@ -128,6 +128,9 @@
     <string name="about_license_hint">Открытый исходный код. Компоненты: yt-dlp (Unlicense), youtubedl-android (GPL-3.0), FFmpeg (GPL-3.0), Jetpack Compose (Apache 2.0).</string>
     <string name="about_source">Исходный код на GitHub</string>
     <string name="about_updates_hint">Новые версии и обновления — в разделе Releases на GitHub.</string>
+    <string name="about_share_app">Поделиться приложением</string>
+    <string name="share_app_text">Video Downloader — приложение для скачивания видео: %1$s</string>
+    <string name="share_target_label">Скачать видео</string>
     <string name="about_update_idle">Обновления проверяются в фоне и по кнопке</string>
     <string name="about_update_checking">Проверка обновлений…</string>
     <string name="about_update_latest">Установлена последняя версия</string>

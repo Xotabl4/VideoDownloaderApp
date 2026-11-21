@@ -1,5 +1,6 @@
 package org.xotabl4.ytdlpgui
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -15,12 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.xotabl4.ytdlpgui.core.AppTheme
 import org.xotabl4.ytdlpgui.core.SettingsStore
+import org.xotabl4.ytdlpgui.core.ShareReceiver
 import org.xotabl4.ytdlpgui.ui.LocalizedContent
 import org.xotabl4.ytdlpgui.ui.theme.Theme
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    handleShareIntent(intent)
 
     setContent {
       val theme by SettingsStore.theme.collectAsStateWithLifecycle()
@@ -44,4 +47,21 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleShareIntent(intent)
+  }
+
+  private fun handleShareIntent(intent: Intent?) {
+    if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+      val text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
+      extractUrl(text)?.let { ShareReceiver.submit(it) }
+    }
+  }
+
+  private fun extractUrl(text: String): String? =
+    Regex("""https?://[^\s"'<>]+""").find(text)?.value?.trim()
 }
+

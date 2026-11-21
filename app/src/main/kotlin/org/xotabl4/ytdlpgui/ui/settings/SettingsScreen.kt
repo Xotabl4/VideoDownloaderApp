@@ -59,6 +59,7 @@ import org.xotabl4.ytdlpgui.core.AppTheme
 import org.xotabl4.ytdlpgui.core.CrashLog
 import org.xotabl4.ytdlpgui.core.AppUpdate
 import org.xotabl4.ytdlpgui.core.DownloadStorage
+import org.xotabl4.ytdlpgui.core.Links
 import org.xotabl4.ytdlpgui.core.SettingsStore
 import org.xotabl4.ytdlpgui.core.ToolStatus
 import org.xotabl4.ytdlpgui.core.UpdateState
@@ -279,6 +280,14 @@ fun SettingsScreen(
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { openUrl(context, Links.REPOSITORY) }) {
+          Text(stringResource(R.string.about_source), style = MaterialTheme.typography.bodyMedium)
+        }
+        TextButton(onClick = { shareApp(context) }) {
+          Text(stringResource(R.string.about_share_app), style = MaterialTheme.typography.bodyMedium)
+        }
+      }
       // Отчёт о последнем падении: отправка через «Поделиться» (FileProvider) и удаление.
       crashFile?.let { file ->
         Text(
@@ -360,6 +369,17 @@ private fun UpdateStatusRow(state: UpdateState, onCheck: () -> Unit, onOpen: (St
 private fun openUrl(context: Context, url: String) {
   val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
   runCatching { context.startActivity(intent) }.onFailure { Log.w("Settings", "open $url: ${it.message}") }
+}
+
+/** Системное меню «Поделиться» со ссылкой на приложение. */
+private fun shareApp(context: Context) {
+  val send =
+    Intent(Intent.ACTION_SEND).apply {
+      type = "text/plain"
+      putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_app_text, Links.REPOSITORY))
+    }
+  val chooser = Intent.createChooser(send, context.getString(R.string.about_share_app))
+  runCatching { context.startActivity(chooser) }.onFailure { Log.w("Settings", "share app: ${it.message}") }
 }
 
 /** Подпись кнопки, которая не влезает: медленно прокручивается влево-вправо. */

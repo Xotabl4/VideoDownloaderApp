@@ -126,6 +126,9 @@
     <string name="about_license_hint">Open source. Components: yt-dlp (Unlicense), youtubedl-android (GPL-3.0), FFmpeg (GPL-3.0), Jetpack Compose (Apache 2.0).</string>
     <string name="about_source">Source code on GitHub</string>
     <string name="about_updates_hint">New versions and updates are published in GitHub Releases.</string>
+    <string name="about_share_app">Share app</string>
+    <string name="share_app_text">Video Downloader — video downloader app: %1$s</string>
+    <string name="share_target_label">Download Video</string>
     <string name="about_update_idle">Updates are checked on start and on demand</string>
     <string name="about_update_checking">Checking for updates…</string>
     <string name="about_update_latest">The latest version is installed</string>

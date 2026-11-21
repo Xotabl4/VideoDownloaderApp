@@ -104,6 +104,17 @@ class LinkViewModel(application: Application) : AndroidViewModel(application) {
     DownloadManager.reset()
   }
 
+  /** Ссылка из системного «Поделиться»: вставляем и сразу грузим форматы. */
+  fun applySharedUrl(url: String) {
+    val trimmed = url.trim()
+    if (trimmed.isEmpty()) return
+    _url.value = trimmed
+    _selection.value = FormatSelection()
+    _category.value = FormatCategory.VideoAudio
+    DownloadManager.reset()
+    fetch(trimmed)
+  }
+
   fun onClear() {
     fetchJob?.cancel()
     _url.value = ""

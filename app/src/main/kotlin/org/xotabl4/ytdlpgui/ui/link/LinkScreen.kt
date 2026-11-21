@@ -84,6 +84,7 @@ import org.xotabl4.ytdlpgui.core.FormatItem
 import org.xotabl4.ytdlpgui.core.FormatPicker
 import org.xotabl4.ytdlpgui.core.Formats
 import org.xotabl4.ytdlpgui.core.FormatsParser
+import org.xotabl4.ytdlpgui.core.ShareReceiver
 import org.xotabl4.ytdlpgui.core.YtDlp
 import org.xotabl4.ytdlpgui.core.YtDlpState
 import org.xotabl4.ytdlpgui.service.DownloadService
@@ -112,6 +113,14 @@ fun LinkScreen(
   val focusManager = LocalFocusManager.current
   // Разрешение на уведомления просим только при запуске загрузки (см. NotificationPermission.kt).
   val ensureNotifications = rememberNotificationPermissionRequester()
+
+  // Ссылка из системного «Поделиться»: вставляем в поле и сразу запрашиваем форматы.
+  val sharedLink by ShareReceiver.event.collectAsStateWithLifecycle()
+  LaunchedEffect(sharedLink?.id) {
+    val link = sharedLink ?: return@LaunchedEffect
+    viewModel.applySharedUrl(link.url)
+    ShareReceiver.consume()
+  }
 
   val openDownloaded: (DownloadState.Completed) -> Unit = { done ->
     val intent =
