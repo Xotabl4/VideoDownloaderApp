@@ -22,8 +22,8 @@ android {
     applicationId = "org.xotabl4.ytdlpgui"
     minSdk = 24
     targetSdk = 36
-    versionCode = 12
-    versionName = "0.5.2"
+    versionCode = 13
+    versionName = "0.5.3"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     // youtubedl-android поставляет Python/yt-dlp/ffmpeg только под эти ABI.

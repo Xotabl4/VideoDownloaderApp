@@ -42,26 +42,42 @@ object UpdateInstaller {
   private fun target(context: Context): File =
     File(File(context.cacheDir, DIR).apply { mkdirs() }, FILE)
 
+  /** Файл-метка с URL скачанного APK: по ней понимаем, не устарел ли кэш. */
+  private fun urlMarker(context: Context): File = File(context.cacheDir, "$DIR/.url")
+
+  private fun cachedUrl(context: Context): String? =
+    runCatching { urlMarker(context).readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+  private fun rememberUrl(context: Context, url: String) {
+    runCatching { urlMarker(context).writeText(url) }
+  }
+
   fun download(context: Context, url: String) {
     if (_state.value is UpdateDownloadState.Downloading) return
     val appContext = context.applicationContext
     val existing = target(appContext)
-    if (existing.length() > 0L) {
+    // Переиспользуем файл только если он от той же версии; чужой (например, старый релиз
+    // из прошлого раза) — качаем заново, иначе установится не та версия.
+    if (existing.length() > 0L && cachedUrl(appContext) == url) {
       _state.value = UpdateDownloadState.Ready(existing)
       return
     }
     scope.launch {
       _state.value = UpdateDownloadState.Downloading(0)
-      _state.value =
+      val result =
         runCatching { perform(appContext, url, existing) }
           .getOrElse { error ->
             Log.w(TAG, "download failed: ${error.message}")
             UpdateDownloadState.Failed(error.message ?: "network")
           }
+      if (result is UpdateDownloadState.Ready) rememberUrl(appContext, url)
+      _state.value = result
     }
   }
 
   private fun perform(context: Context, url: String, target: File): UpdateDownloadState {
+    // Убираем устаревший файл, чтобы rename ниже всегда записывал свежий APK.
+    target.delete()
     val connection =
       (URL(url).openConnection() as HttpURLConnection).apply {
         connectTimeout = TIMEOUT_MS
