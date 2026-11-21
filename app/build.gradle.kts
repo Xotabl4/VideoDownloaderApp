@@ -17,11 +17,11 @@ val keystoreProps =
 
 android {
   namespace = "org.xotabl4.ytdlpgui"
-  compileSdk = 37
+  compileSdk = 36
   defaultConfig {
     applicationId = "org.xotabl4.ytdlpgui"
     minSdk = 24
-    targetSdk = 37
+    targetSdk = 36
     versionCode = 7
     versionName = "0.4.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
