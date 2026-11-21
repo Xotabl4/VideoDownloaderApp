@@ -20,8 +20,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          target: "android-37"
-          build-tools: "34.0.0"
+          packages: "platforms;android-37 build-tools;34.0.0 platform-tools"
 
       - name: Make gradlew executable
         run: chmod +x gradlew
