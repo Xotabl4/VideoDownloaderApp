@@ -442,7 +442,9 @@ private fun shareApp(context: Context) {
       type = "text/plain"
       putExtra(Intent.EXTRA_TEXT, context.getString(R.string.share_app_text, Links.REPOSITORY))
     }
-  val chooser = Intent.createChooser(send, context.getString(R.string.about_share_app))
+  val chooser =
+    Intent.createChooser(send, context.getString(R.string.about_share_app))
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
   runCatching { context.startActivity(chooser) }.onFailure { Log.w("Settings", "share app: ${it.message}") }
 }
 
