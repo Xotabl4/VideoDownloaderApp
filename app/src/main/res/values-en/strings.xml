@@ -120,6 +120,9 @@
     <string name="settings_language">Language</string>
     <string name="language_ru">Русский</string>
     <string name="language_en">English</string>
+    <string name="settings_parallel">Simultaneous downloads</string>
+    <string name="settings_parallel_value">Download at once: %1$d</string>
+    <string name="settings_parallel_hint">More streams finish a playlist faster on a fast connection. On mobile data keep 2: when overloaded, the server may drop downloads.</string>
     <string name="settings_battery">Battery</string>
     <string name="battery_status_ok">Battery optimization is off — downloads are not interrupted</string>
     <string name="about_license">License: GPL-3.0</string>
@@ -145,6 +148,7 @@
     <string name="dest_picked_folder">selected folder</string>
     <string name="download_preparing">Preparing…</string>
     <string name="download_queued">Queued…</string>
+    <string name="download_retrying">Connection dropped — retrying…</string>
     <string name="notif_summary_title">Downloading: %1$d</string>
     <string name="notif_summary_text">Overall progress: %1$d%%</string>
     <string name="error_ffmpeg_missing">ffmpeg is not initialized — conversion unavailable</string>
@@ -171,6 +175,9 @@
     <string name="task_failed">Download failed</string>
     <string name="task_interrupted">Download interrupted</string>
     <string name="task_delete_question">Remove “%1$s” from the list?</string>
+    <string name="tasks_clear">Clear</string>
+    <string name="tasks_clear_hint">Canceled and failed: %1$d</string>
+    <string name="tasks_clear_question">Remove canceled and failed downloads from the list? Downloaded files stay.</string>
     <string name="error_site_unsupported">This site is not supported. YouTube, RuTube, VK Video, PornHub and ~1700 other services work.</string>
     <string name="error_site_drm">This service cannot be downloaded: the video is DRM-protected.</string>
     <string name="error_site_kinopoisk">Kinopoisk does not allow downloading: its movies are DRM-protected. Offline viewing is only in the Kinopoisk app.</string>
@@ -195,6 +202,7 @@
     <string name="error_vk_blocked">VK restricted access to this playlist (blocked by the Russian regulator). Enable VPN and retry.</string>
     <string name="error_vk_login">This VK playlist is visible only after signing in — it cannot be downloaded.</string>
     <string name="error_vk_playlist">VK did not return the playlist video list: it is closed, removed or restricted. Check the link or enable VPN.</string>
+    <string name="error_vk_channel">VK opens a channel only after sign-in. Its videos cannot be downloaded anonymously.</string>
     <string name="vk_playlist_folder">VK playlist %1$s</string>
     <string name="vk_playlist_folder_owner">%1$s — VK playlist %2$s</string>
     <string name="ph_harvest_title">PornHub: fetching stream…</string>

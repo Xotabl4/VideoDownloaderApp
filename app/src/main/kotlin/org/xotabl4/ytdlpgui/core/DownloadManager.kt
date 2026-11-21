@@ -4,23 +4,26 @@ import android.content.Context
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.yausername.youtubedl_android.YoutubeDLResponse
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.xotabl4.ytdlpgui.R
 
 private const val TAG = "Download"
@@ -31,8 +34,11 @@ private const val NO_CONVERSION = "Оригинал"
 /** Подпапка плейлиста, если название взять неоткуда. */
 private const val DEFAULT_PLAYLIST_FOLDER = "Playlist"
 
-/** Сколько загрузок идёт одновременно. */
-const val MAX_PARALLEL_DOWNLOADS = 2
+/** Сколько раз повторяем загрузку, если сервер оборвал передачу по таймауту. */
+private const val TIMEOUT_RETRIES = 1
+
+/** Пауза перед повтором: сервер успевает освободить соединение. */
+private const val RETRY_DELAY_MS = 3_000L
 
 /** Цели конвертации, которые выполняются через `-x --audio-format`. */
 private val AUDIO_TARGETS = setOf("mp3", "m4a", "wav", "flac")
@@ -95,11 +101,22 @@ private class Session(
  * Загрузки, несколько задач параллельно.
  *
  * У каждой свой процесс yt-dlp, своя папка в кэше и своё состояние.
- * Одновременно идут не больше [MAX_PARALLEL_DOWNLOADS], остальные ждут.
+ * Одновременно идут не больше [SettingsStore.parallelDownloads], остальные ждут.
  */
 object DownloadManager {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-  private val slots = Semaphore(MAX_PARALLEL_DOWNLOADS)
+
+  /** Сколько задач реально работает сейчас (без очереди). */
+  private val started = AtomicInteger()
+
+  /** Задачи, ждущие свободный слот. */
+  private val waiting = ArrayDeque<CompletableDeferred<Unit>>()
+  private val gate = Mutex()
+
+  init {
+    // Ползунок в настройках подняли — сразу запускаем ожидающие задачи.
+    scope.launch { SettingsStore.parallelDownloads.collect { drainWaiters() } }
+  }
 
   private val sessions = ConcurrentHashMap<String, Session>()
 
@@ -197,7 +214,7 @@ object DownloadManager {
       ),
     )
 
-    val queued = activeCount >= MAX_PARALLEL_DOWNLOADS
+    val queued = started.get() >= SettingsStore.parallelDownloads.value
     Log.i(TAG, "start: task=$taskId, format=$formatId, queued=$queued, active=$activeCount")
     publish(
       taskId,
@@ -209,8 +226,59 @@ object DownloadManager {
       ),
     )
 
-    session.job = scope.launch { slots.withPermit { run(appContext, session) } }
+    session.job = scope.launch {
+      acquireSlot()
+      try {
+        run(appContext, session)
+      } finally {
+        releaseSlot()
+      }
+    }
     return taskId
+  }
+
+  /** Занимает слот, если есть место; иначе ждёт, пока его освободят. */
+  private suspend fun acquireSlot() {
+    val waiter =
+      gate.withLock {
+        if (tryStart()) return
+        CompletableDeferred<Unit>().also { waiting.addLast(it) }
+      }
+    try {
+      waiter.await()
+    } catch (e: CancellationException) {
+      // Отменили, пока задача стояла в очереди. Слот мог достаться ей — возвращаем.
+      val stillWaiting = gate.withLock { waiting.remove(waiter) }
+      if (!stillWaiting) releaseSlot()
+      throw e
+    }
+  }
+
+  /** Пробует занять слот без ожидания. */
+  private fun tryStart(): Boolean {
+    val limit = SettingsStore.parallelDownloads.value
+    while (true) {
+      val current = started.get()
+      if (current >= limit) return false
+      if (started.compareAndSet(current, current + 1)) return true
+    }
+  }
+
+  private fun releaseSlot() {
+    started.updateAndGet { (it - 1).coerceAtLeast(0) }
+    scope.launch { drainWaiters() }
+  }
+
+  /** Отдаёт освободившиеся слоты ждущим задачам. */
+  private suspend fun drainWaiters() {
+    val woken = mutableListOf<CompletableDeferred<Unit>>()
+    gate.withLock {
+      while (waiting.isNotEmpty()) {
+        if (!tryStart()) break
+        woken += waiting.removeFirst()
+      }
+    }
+    woken.forEach { it.complete(Unit) }
   }
 
   /** Публикует состояние задачи и обновляет «главную» загрузку, если это она. */
@@ -283,11 +351,13 @@ object DownloadManager {
     // Канал закрываем в любом случае, иначе корутина-публикатор останется висеть.
     val publishQueue = Channel<String>(Channel.UNLIMITED)
     try {
-      // PornHub: ссылку на нужное качество берём из скрытого WebView (см. PhHarvest).
+      // PornHub: ссылка `ph:<качество>` пришла из WebView-харвестера (прямой поток CDN).
+      // Обычные форматы (720p и т.п.) yt-dlp качает сам через --impersonate.
       val isPornHub = PhCookies.isPornHub(url)
-      val phQuality = if (formatId.startsWith("ph:")) formatId.removePrefix("ph:").toIntOrNull() else null
+      val fromHarvest = isPornHub && formatId.startsWith("ph:")
+      val phQuality = if (fromHarvest) formatId.removePrefix("ph:").toIntOrNull() else null
       val effectiveUrl =
-        if (isPornHub) {
+        if (fromHarvest) {
           PhHarvest.urlForQuality(phQuality)
             ?: PhHarvest.resolveAll(context, url).variants.firstOrNull()?.url
             ?: throw IllegalStateException(context.getString(R.string.error_pornhub_stream))
@@ -295,8 +365,25 @@ object DownloadManager {
           url
         }
 
+      // Канал VK: видео перечислены нами, yt-dlp получает их списком из файла.
+      val vkEntries =
+        if (isPlaylist && VkChannel.matches(url)) {
+          VkChannel.cachedEntries(url).ifEmpty {
+            (VkChannel.resolve(context, url) as? VkChannel.Result.Ok)?.info?.entries.orEmpty()
+          }
+        } else {
+          emptyList()
+        }
+      val batchFile =
+        if (vkEntries.isNotEmpty()) {
+          File(dir, "entries.txt").apply { writeText(vkEntries.joinToString("\n")) }
+        } else {
+          null
+        }
+
       val request =
-        YoutubeDLRequest(effectiveUrl).apply {
+        YoutubeDLRequest(if (batchFile != null) emptyList<String>() else listOf(effectiveUrl)).apply {
+          if (batchFile != null) addOption("--batch-file", batchFile.absolutePath)
           // Impersonation: тот же отпечаток, что при разборе ссылки.
           if (CurlImpersonate.wantedFor(url) && CurlImpersonate.ensure(context)) {
             addOption("--impersonate", "chrome")
@@ -306,7 +393,7 @@ object DownloadManager {
           addOption(
             "-f",
             when {
-              isPornHub -> "best"
+              fromHarvest -> "best"
               isPlaylist -> "$formatId/bv*+ba/b"
               else -> formatId
             },
@@ -400,9 +487,12 @@ object DownloadManager {
         }
 
       // Плейлист с приватными роликами завершается ошибкой, но скачанное не теряем.
-      val response =
+      var response: YoutubeDLResponse? = null
+      var attempt = 0
+      while (true) {
+        attempt++
         try {
-          YoutubeDL.getInstance().execute(request, pid) { libPercent, libEta, line ->
+          response = YoutubeDL.getInstance().execute(request, pid) { libPercent, libEta, line ->
             // Колбэк не всегда отдаёт процент, тогда считаем сами по строке.
             val percent = libPercent.takeIf { it > 0f }?.div(100f) ?: parsePercent(line) ?: 0f
             val eta = libEta.takeIf { it > 0 } ?: parseEtaSeconds(line)
@@ -424,14 +514,29 @@ object DownloadManager {
               }
             }
           }
+          break
         } catch (e: YoutubeDL.CanceledException) {
           throw e
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: Exception) {
+          // Сервер оборвал передачу: при нескольких загрузках сразу это бывает.
+          // Файл продолжается с места обрыва, поэтому повтор почти ничего не стоит.
+          if (attempt <= TIMEOUT_RETRIES && isRetryableTimeout(e.message.orEmpty())) {
+            Log.w(TAG, "retry $attempt/$TIMEOUT_RETRIES: task=$taskId, ${e.message?.take(160)}")
+            publish(
+              taskId,
+              DownloadState.Running(0f, null, context.getString(R.string.download_retrying), title),
+            )
+            delay(RETRY_DELAY_MS)
+            continue
+          }
           // Опубликованное не теряем: показываем успех для сохранённого.
           if (!isPlaylist || (!hasDownloadedFiles(context, taskId) && publishedCount.get() == 0)) throw e
           Log.w(TAG, "playlist finished with errors: ${e.message?.take(300)}")
-          null
+          break
         }
+      }
 
       // Процесс закончился: публикуем остаток и смотрим, что получилось.
       publishQueue.close()
@@ -555,6 +660,14 @@ object DownloadManager {
   /** Без ffmpeg не работают ни `-x`, ни склейка. */
   private fun ffmpegReady(): Boolean =
     (YtDlp.state.value as? YtDlpState.Ready)?.ffmpegVersion != null
+
+  /** Сетевой таймаут или обрыв посреди файла: загрузку имеет смысл повторить. */
+  private fun isRetryableTimeout(message: String): Boolean {
+    val text = message.lowercase()
+    return text.contains("timed out") ||
+      text.contains("timeout") ||
+      text.contains("unable to download video data")
+  }
 
   /** `[download]  12.3% of ...` → 0.123 */
   private fun parsePercent(line: String): Float? =

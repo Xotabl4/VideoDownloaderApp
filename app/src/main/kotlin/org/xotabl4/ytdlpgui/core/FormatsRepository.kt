@@ -23,8 +23,25 @@ object FormatsRepository {
     withContext(Dispatchers.IO) {
       // Сайты с DRM не пробуем, сразу объясняем причину.
       DownloadErrors.unsupportedSite(context, url)?.let { throw IllegalStateException(it) }
-      // PornHub закрыт антибот-защитой: качества и прямые ссылки забирает скрытый WebView.
+      // PornHub: с curl_cffi (`--impersonate chrome`) yt-dlp сам проходит антибот-проверку
+      // и отдаёт список качеств. Если impersonation недоступен — запасной путь через WebView.
       if (PhCookies.isPornHub(url)) {
+        val direct =
+          runCatching { fetchSingle(context, url) }
+            .onFailure { Log.w(TAG, "pornhub direct failed: ${it.message?.take(200)}") }
+            .getOrNull()
+        if (direct != null && direct.formats.isNotEmpty()) {
+          val formats =
+            FormatsParser.build(
+              title = direct.title.ifBlank { "PornHub" },
+              raw = direct.formats,
+              thumbnail = direct.thumbnail,
+              durationSeconds = direct.durationSeconds,
+              isPlaylist = false,
+            )
+          Log.i(TAG, "pornhub via impersonate: formats=${direct.formats.size}")
+          return@withContext formats
+        }
         val result = PhHarvest.resolveAll(context, url)
         if (result.variants.isEmpty()) {
           throw IllegalStateException(context.getString(R.string.error_pornhub_stream))
@@ -54,6 +71,41 @@ object FormatsRepository {
           thumbnail = "",
           durationSeconds = 0L,
         )
+      }
+
+      // Канал VK: yt-dlp не разбирает страницу `@name` («Unable to extract cursor data»),
+      // поэтому список видео и название берём сами, а форматы — у первого ролика.
+      if (VkChannel.matches(url)) {
+        when (val vk = VkChannel.resolve(context, url, limit = 20)) {
+          is VkChannel.Result.Ok -> {
+            val info = vk.info
+            val first =
+              info.entries.firstOrNull()
+                ?: throw IllegalStateException(context.getString(R.string.error_vk_playlist))
+            val single = fetchSingle(context, first)
+            val formats =
+              FormatsParser.build(
+                title = info.title,
+                raw = single.formats,
+                thumbnail = single.thumbnail,
+                durationSeconds = single.durationSeconds,
+                playlistTitle = info.title,
+                playlistCount = info.total,
+                isPlaylist = true,
+              )
+            Log.i(
+              TAG,
+              "vk channel '${info.title}': total=${info.total}, entries=${info.entries.size}, " +
+                "formats=${single.formats.size}",
+            )
+            return@withContext formats
+          }
+          VkChannel.Result.Blocked ->
+            throw IllegalStateException(context.getString(R.string.error_vk_blocked))
+          VkChannel.Result.LoginRequired ->
+            throw IllegalStateException(context.getString(R.string.error_vk_channel))
+          VkChannel.Result.Unknown -> Unit
+        }
       }
 
       // Диагностика impersonation доступна отдельно (CurlImpersonate.probe), в рабочем пути не нужна.
@@ -235,6 +287,8 @@ object FormatsRepository {
         if (PhCookies.isPornHub(url)) {
           addOption("--cookies", PhCookies.file(context).absolutePath)
           addOption("--user-agent", PhCookies.USER_AGENT)
+          addOption("--referer", "https://www.pornhub.com/")
+          addOption("--add-header", "Origin: https://www.pornhub.com")
         }
       }
     val response =

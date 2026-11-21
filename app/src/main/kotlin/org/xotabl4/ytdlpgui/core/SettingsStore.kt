@@ -32,12 +32,16 @@ enum class AppLanguage(val tag: String) {
   }
 }
 
-/** Настройки: тема, язык, автообновление. */
+/** Сколько загрузок качать одновременно: три положения ползунка. */
+val PARALLEL_DOWNLOAD_OPTIONS = listOf(2, 5, 10)
+
+/** Настройки: тема, язык, автообновление, число одновременных загрузок. */
 object SettingsStore {
   private const val PREFS = "app_settings"
   private const val KEY_AUTO_UPDATE_YTDLP = "auto_update_ytdlp"
   private const val KEY_THEME = "theme"
   private const val KEY_LANGUAGE = "language"
+  private const val KEY_PARALLEL_DOWNLOADS = "parallel_downloads"
 
   private val _autoUpdateYtDlp = MutableStateFlow(false)
   val autoUpdateYtDlp: StateFlow<Boolean> = _autoUpdateYtDlp.asStateFlow()
@@ -48,12 +52,28 @@ object SettingsStore {
   private val _language = MutableStateFlow(AppLanguage.Ru)
   val language: StateFlow<AppLanguage> = _language.asStateFlow()
 
+  private val _parallelDownloads = MutableStateFlow(PARALLEL_DOWNLOAD_OPTIONS.first())
+  /** Сколько загрузок идёт одновременно (2, 5 или 10). */
+  val parallelDownloads: StateFlow<Int> = _parallelDownloads.asStateFlow()
+
   fun refresh(context: Context) {
     val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     _autoUpdateYtDlp.value = prefs.getBoolean(KEY_AUTO_UPDATE_YTDLP, false)
     _theme.value = AppTheme.from(prefs.getString(KEY_THEME, null))
     _language.value = AppLanguage.from(prefs.getString(KEY_LANGUAGE, null))
+    _parallelDownloads.value =
+      normalizeParallel(prefs.getInt(KEY_PARALLEL_DOWNLOADS, PARALLEL_DOWNLOAD_OPTIONS.first()))
   }
+
+  /** Сохраняет число одновременных загрузок; недопустимое значение заменяется на 2. */
+  fun setParallelDownloads(context: Context, count: Int) {
+    val value = normalizeParallel(count)
+    prefs(context).edit().putInt(KEY_PARALLEL_DOWNLOADS, value).apply()
+    _parallelDownloads.value = value
+  }
+
+  private fun normalizeParallel(count: Int): Int =
+    if (count in PARALLEL_DOWNLOAD_OPTIONS) count else PARALLEL_DOWNLOAD_OPTIONS.first()
 
   fun setAutoUpdateYtDlp(context: Context, enabled: Boolean) {
     prefs(context).edit().putBoolean(KEY_AUTO_UPDATE_YTDLP, enabled).apply()

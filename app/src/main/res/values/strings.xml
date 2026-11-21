@@ -122,6 +122,9 @@
     <string name="settings_language">Язык</string>
     <string name="language_ru">Русский</string>
     <string name="language_en">English</string>
+    <string name="settings_parallel">Одновременные загрузки</string>
+    <string name="settings_parallel_value">Качать одновременно: %1$d</string>
+    <string name="settings_parallel_hint">Больше потоков — быстрее плейлист на быстром интернете. На мобильной сети лучше оставить 2: при перегрузке сервер может обрывать загрузки.</string>
     <string name="settings_battery">Батарея</string>
     <string name="battery_status_ok">Оптимизация батареи отключена — загрузки не прерываются</string>
     <string name="about_license">Лицензия: GPL-3.0</string>
@@ -149,6 +152,7 @@
     <string name="dest_picked_folder">выбранная папка</string>
     <string name="download_preparing">Подготовка…</string>
     <string name="download_queued">В очереди…</string>
+    <string name="download_retrying">Связь прервалась — повторяю…</string>
     <string name="notif_summary_title">Скачивается видео: %1$d</string>
     <string name="notif_summary_text">Общий прогресс: %1$d%%</string>
     <string name="error_ffmpeg_missing">ffmpeg не инициализирован — конвертация недоступна</string>
@@ -177,6 +181,9 @@
     <string name="task_failed">Загрузка не удалась</string>
     <string name="task_interrupted">Загрузка прервана</string>
     <string name="task_delete_question">Удалить «%1$s» из списка?</string>
+    <string name="tasks_clear">Убрать</string>
+    <string name="tasks_clear_hint">Отменённые и упавшие: %1$d</string>
+    <string name="tasks_clear_question">Убрать отменённые и упавшие загрузки из списка? Скачанные файлы останутся.</string>
 
 
     <string name="error_site_unsupported">Этот сайт не поддерживается. Работают YouTube, RuTube, VK Видео, PornHub и ещё ~1700 сервисов.</string>
@@ -203,6 +210,7 @@
     <string name="error_vk_blocked">VK ограничил доступ к этому плейлисту (блокировка Роскомнадзора). Включите VPN и повторите.</string>
     <string name="error_vk_login">Этот плейлист VK виден только после входа в аккаунт — скачать его нельзя.</string>
     <string name="error_vk_playlist">VK не отдал список видео плейлиста: он закрыт, удалён или доступ ограничен. Проверьте ссылку или включите VPN.</string>
+    <string name="error_vk_channel">VK открывает канал только после входа в аккаунт. Анонимно скачать его видео нельзя.</string>
     <string name="vk_playlist_folder">VK плейлист %1$s</string>
     <string name="vk_playlist_folder_owner">%1$s — VK плейлист %2$s</string>
     <string name="ph_harvest_title">PornHub: получаю поток…</string>

@@ -215,4 +215,17 @@ object DownloadTasks {
       TaskStatus.Canceled -> context.getString(R.string.task_canceled)
       TaskStatus.Failed -> context.getString(R.string.task_failed)
     }
+
+  /** Убирает отменённые и упавшие задачи; идущие не трогает. Возвращает их id. */
+  fun clearFinished(context: Context): List<String> =
+    synchronized(lock) {
+      ensureLoaded(context)
+      val finished = _entries.value.filter { it.status != TaskStatus.Running }.map { it.id }
+      if (finished.isNotEmpty()) {
+        _entries.value = _entries.value.filterNot { it.id in finished }
+        persist(context)
+        Log.i(TAG, "cleared finished tasks: ${finished.size}")
+      }
+      finished
+    }
 }

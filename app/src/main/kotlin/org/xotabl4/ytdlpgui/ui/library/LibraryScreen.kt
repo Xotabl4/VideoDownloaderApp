@@ -83,6 +83,7 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
   var pendingDelete by remember { mutableStateOf<HistoryEntry?>(null) }
   var pendingTaskDelete by remember { mutableStateOf<DownloadTask?>(null) }
   var clearRequested by remember { mutableStateOf(false) }
+  var clearTasksRequested by remember { mutableStateOf(false) }
 
   // Отменённые и упавшие загрузки остаются в списке; идущие показываем отдельными карточками
   // (их может быть несколько — параллельные загрузки).
@@ -143,6 +144,24 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
           }
         }
         if (showTasks) {
+          if (unfinished.isNotEmpty()) {
+            item(key = "tasks-clear") {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Text(
+                  text = stringResource(R.string.tasks_clear_hint, unfinished.size),
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { clearTasksRequested = true }) {
+                  Text(stringResource(R.string.tasks_clear))
+                }
+              }
+            }
+          }
           itemsIndexed(unfinished, key = { _, task -> task.id }) { _, task ->
             TaskCard(
               task = task,
@@ -207,6 +226,28 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
       },
       dismissButton = {
         TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.dialog_cancel)) }
+      },
+    )
+  }
+
+  if (clearTasksRequested) {
+    AlertDialog(
+      onDismissRequest = { clearTasksRequested = false },
+      title = { Text(stringResource(R.string.tasks_clear)) },
+      text = { Text(stringResource(R.string.tasks_clear_question)) },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            clearTasksRequested = false
+            // Отменённые и упавшие задачи могли оставить недокачанные части в кэше.
+            DownloadTasks.clearFinished(context).forEach { DownloadStorage.clearTemp(context, it) }
+          },
+        ) {
+          Text(stringResource(R.string.tasks_clear))
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { clearTasksRequested = false }) { Text(stringResource(R.string.dialog_cancel)) }
       },
     )
   }

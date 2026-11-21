@@ -30,6 +30,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -54,6 +55,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import org.xotabl4.ytdlpgui.R
 import org.xotabl4.ytdlpgui.core.AppLanguage
@@ -62,6 +64,7 @@ import org.xotabl4.ytdlpgui.core.CrashLog
 import org.xotabl4.ytdlpgui.core.AppUpdate
 import org.xotabl4.ytdlpgui.core.DownloadStorage
 import org.xotabl4.ytdlpgui.core.Links
+import org.xotabl4.ytdlpgui.core.PARALLEL_DOWNLOAD_OPTIONS
 import org.xotabl4.ytdlpgui.core.SettingsStore
 import org.xotabl4.ytdlpgui.core.ToolStatus
 import org.xotabl4.ytdlpgui.core.UpdateDownloadState
@@ -166,6 +169,28 @@ fun SettingsScreen(
           Text(stringResource(R.string.dest_reset), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
       }
+    }
+
+     SettingsCard(title = stringResource(R.string.settings_parallel)) {
+      val parallel by SettingsStore.parallelDownloads.collectAsStateWithLifecycle()
+      Text(
+        text = stringResource(R.string.settings_parallel_value, parallel),
+        style = MaterialTheme.typography.bodyMedium,
+      )
+      Slider(
+        value = PARALLEL_DOWNLOAD_OPTIONS.indexOf(parallel).coerceAtLeast(0).toFloat(),
+        onValueChange = { position ->
+          SettingsStore.setParallelDownloads(context, PARALLEL_DOWNLOAD_OPTIONS[position.roundToInt()])
+        },
+        valueRange = 0f..(PARALLEL_DOWNLOAD_OPTIONS.size - 1).toFloat(),
+        steps = PARALLEL_DOWNLOAD_OPTIONS.size - 2,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+      )
+      Text(
+        text = stringResource(R.string.settings_parallel_hint),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
 
     SettingsCard(title = stringResource(R.string.settings_appearance)) {
