@@ -10,6 +10,8 @@ data class PlaylistItemProgress(
   val percent: Int = 0,
   /** Серия уже сохранена. */
   val done: Boolean = false,
+  /** Серия не скачалась (ошибка или отмена). */
+  val failed: Boolean = false,
 )
 
 /**

@@ -150,7 +150,15 @@ class DownloadService : Service() {
           }
         status =
           when {
-            // Плейлист: в уведомлении видно, какая серия идёт и сколько готово в целом.
+            // Плейлист параллельно: сколько серий готово из всех.
+            state.isPlaylist && state.parallel ->
+              getString(
+                R.string.notif_playlist_parallel,
+                state.playlistItems.count { it.done },
+                state.itemCount.coerceAtLeast(state.playlistItems.size),
+                percent,
+              )
+            // Плейлист по одной серии: в уведомлении видно, какая серия идёт.
             state.isPlaylist && episode != null ->
               getString(
                 R.string.notif_playlist_progress,

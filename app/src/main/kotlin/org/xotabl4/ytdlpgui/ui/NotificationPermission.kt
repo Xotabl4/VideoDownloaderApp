@@ -76,15 +76,15 @@ fun rememberNotificationPermissionRequester(): (onReady: () -> Unit) -> Unit {
     )
   }
 
-  return remember(context, launcher) {
-    { onReady ->
-      when {
-        missingPermission -> {
-          pendingAction = onReady
-          showRationale = true
-        }
-        else -> onReady()
+  // Лямбду не запоминаем: иначе она держит старое значение `missingPermission`
+  // (например, «разрешения нет») и после выдачи разрешения кнопка «Скачать» молчит.
+  return { onReady ->
+    when {
+      missingPermission -> {
+        pendingAction = onReady
+        showRationale = true
       }
+      else -> onReady()
     }
   }
 }

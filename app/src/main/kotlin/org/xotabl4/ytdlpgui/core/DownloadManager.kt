@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,9 @@ private const val TIMEOUT_RETRIES = 1
 
 /** Пауза перед повтором: сервер успевает освободить соединение. */
 private const val RETRY_DELAY_MS = 3_000L
+
+/** Как часто обновляем общий прогресс плейлиста, пока качаются серии. */
+private const val PROGRESS_TICK_MS = 400L
 
 /** Цели конвертации, которые выполняются через `-x --audio-format`. */
 private val AUDIO_TARGETS = setOf("mp3", "m4a", "wav", "flac")
@@ -63,6 +67,8 @@ sealed interface DownloadState {
     val itemCount: Int = 0,
     /** Название плейлиста (подпись «шторки»). */
     val playlistTitle: String = "",
+    /** Серии качаются параллельно (каждая — свой процесс), а не по одной. */
+    val parallel: Boolean = false,
   ) : DownloadState
 
   data class Completed(
@@ -96,6 +102,8 @@ data class RunningDownload(
   val itemCount: Int = 0,
   /** Название плейлиста. */
   val playlistTitle: String = "",
+  /** Серии качаются параллельно (у каждой свой процесс). */
+  val parallel: Boolean = false,
 )
 
 /** Данные одной загрузки. */
@@ -111,12 +119,29 @@ private class Session(
   val playlistCount: Int,
   val thumbnail: String,
   val durationSeconds: Long,
+  /** Папка плейлиста для серии, которая качается отдельным процессом. */
+  val playlistFolder: String? = null,
+  /** Служебная серия: в «Загрузках» показывается только плейлист-родитель. */
+  val hidden: Boolean = false,
+  /** id плейлиста-родителя. */
+  val parentId: String? = null,
 ) {
   @Volatile var job: Job? = null
   @Volatile var pid: String? = null
 
   /** Папка плейлиста. */
-  val folder: String = playlistTitle.ifBlank { title }.ifBlank { DEFAULT_PLAYLIST_FOLDER }
+  val folder: String =
+    playlistFolder ?: playlistTitle.ifBlank { title }.ifBlank { DEFAULT_PLAYLIST_FOLDER }
+
+  /** id серий, запущенных этим плейлистом (для отмены и итогов). */
+  val children: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
+
+  /** Состояния серий: их собирает плейлист-родитель. */
+  val childStates = ConcurrentHashMap<String, DownloadState>()
+
+  /** Серия плейлиста, качающаяся отдельным процессом. */
+  val isPlaylistItem: Boolean
+    get() = playlistFolder != null
 }
 
 /**
@@ -258,6 +283,29 @@ object DownloadManager {
     )
 
     session.job = scope.launch {
+      // Плейлист при 2+ потоках качаем сериями в параллель: у каждой свой процесс и свой слот.
+      // Если список серий получить не удалось — работает старый путь одним процессом.
+      if (session.isPlaylist && SettingsStore.parallelDownloads.value > 1) {
+        val entries =
+          try {
+            PlaylistResolver.resolve(appContext, session.url)
+          } catch (e: CancellationException) {
+            // Отменили, пока получали список серий: задача не должна остаться «вечной».
+            Log.i(TAG, "canceled while resolving playlist: $taskId")
+            DownloadTasks.cancel(appContext, taskId)
+            publish(taskId, DownloadState.Canceled)
+            throw e
+          } catch (e: Exception) {
+            Log.w(TAG, "playlist resolve failed: ${e.message?.take(200)}")
+            emptyList()
+          }
+        if (entries.size > 1) {
+          Log.i(TAG, "playlist: task=$taskId, series=${entries.size}")
+          runPlaylist(appContext, session, entries)
+          return@launch
+        }
+        Log.i(TAG, "playlist: series=${entries.size}, sequential fallback")
+      }
       acquireSlot()
       try {
         run(appContext, session)
@@ -314,6 +362,12 @@ object DownloadManager {
 
   /** Публикует состояние задачи и обновляет «главную» загрузку, если это она. */
   private fun publish(taskId: String, state: DownloadState) {
+    // Состояние серии отдаём плейлисту-родителю: в «Загрузках» одна карточка на плейлист.
+    val session = sessions[taskId]
+    if (session?.hidden == true) {
+      session.parentId?.let { parentId -> sessions[parentId]?.childStates?.put(taskId, state) }
+      return
+    }
     _states.value = _states.value + (taskId to state)
     if (primaryId == taskId) _state.value = state
     _running.value =
@@ -329,6 +383,7 @@ object DownloadManager {
             itemIndex = running.itemIndex,
             itemCount = running.itemCount,
             playlistTitle = running.playlistTitle,
+            parallel = running.parallel,
           )
         }
       }
@@ -338,13 +393,29 @@ object DownloadManager {
   fun cancel(taskId: String? = null) {
     val id = taskId ?: primaryId ?: return
     val session = sessions[id] ?: return
-    Log.i(TAG, "cancel requested for $id (pid=${session.pid})")
+    Log.i(TAG, "cancel requested for $id (pid=${session.pid}, series=${session.children.size})")
+    // Плейлист: сначала останавливаем все его серии, потом сам родитель.
+    if (session.children.isNotEmpty()) killChildren(session)
     val pid = session.pid
     if (pid != null) {
       YoutubeDL.getInstance().destroyProcessById(pid)
     } else {
       // Ещё стоит в очереди и не запускала yt-dlp — просто снимаем корутину.
       session.job?.cancel()
+    }
+  }
+
+  /** Останавливает процессы серий плейлиста. */
+  private fun killChildren(session: Session) {
+    session.children.forEach { childId ->
+      val child = sessions[childId] ?: return@forEach
+      val pid = child.pid
+      if (pid != null) {
+        runCatching { YoutubeDL.getInstance().destroyProcessById(pid) }
+          .onFailure { Log.w(TAG, "не удалось остановить серию $childId: ${it.message}") }
+      } else {
+        child.job?.cancel()
+      }
     }
   }
 
@@ -375,6 +446,8 @@ object DownloadManager {
     val mergeFormat = session.mergeFormat
     val title = session.title
     val isPlaylist = session.isPlaylist
+    /** Серия плейлиста, которую родитель запустил отдельным процессом. */
+    val inPlaylist = session.isPlaylistItem
     val playlistFolder = session.folder
     val dir = DownloadStorage.tempDir(context, taskId)
     // Перед плейлистом чистим папку: из неё берутся готовые файлы.
@@ -431,7 +504,7 @@ object DownloadManager {
             "-f",
             when {
               fromHarvest -> "best"
-              isPlaylist -> "$formatId/bv*+ba/b"
+              isPlaylist || inPlaylist -> "$formatId/bv*+ba/b"
               else -> formatId
             },
           )
@@ -479,7 +552,8 @@ object DownloadManager {
         }
 
       // Файлы плейлиста публикуем по одному, иначе при отмене теряется всё скачанное.
-      val subDir = if (isPlaylist) playlistFolder else null
+      // У серии параллельного плейлиста папка задана снаружи.
+      val subDir = session.playlistFolder ?: if (isPlaylist) playlistFolder else null
       val queuedPaths = ConcurrentHashMap.newKeySet<String>()
       val publishedPaths = ConcurrentHashMap.newKeySet<String>()
       val publishedCount = AtomicInteger()
@@ -504,8 +578,8 @@ object DownloadManager {
                 conversion = mergeFormat,
                 thumbnail = session.thumbnail,
                 durationSeconds = session.durationSeconds,
-                isPlaylist = isPlaylist,
-                playlistTitle = playlistFolder,
+                isPlaylist = isPlaylist || inPlaylist,
+                playlistTitle = if (isPlaylist || inPlaylist) playlistFolder else "",
               ),
             )
             saved
@@ -540,7 +614,8 @@ object DownloadManager {
                 ?: parsePercent(line)
                 ?: 0f
             val eta = libEta.takeIf { it > 0 } ?: parseEtaSeconds(line)
-            DownloadTasks.progress(taskId, (percent * 100).toInt())
+            // Служебная серия не попадает в «Загрузки»: проценты собирает плейлист-родитель.
+            if (!session.hidden) DownloadTasks.progress(taskId, (percent * 100).toInt())
             publish(taskId, runningState(percent, eta, line.trim()))
             if (isPlaylist) {
               // `--print after_move:@@file…`: файл готов, можно публиковать.
@@ -615,14 +690,14 @@ object DownloadManager {
         val message =
           if (hint.isEmpty()) context.getString(R.string.error_no_file_path)
           else context.getString(R.string.error_no_file_path_hint, hint)
-        DownloadTasks.fail(context, taskId, message)
+        if (!session.hidden) DownloadTasks.fail(context, taskId, message)
         publish(taskId, DownloadState.Failed(message))
         return
       }
 
       val first = firstSaved.get() ?: return
       Log.i(TAG, "done: task=$taskId, exit=${response?.exitCode ?: -1}, files=$saved, first=${first.displayPath}")
-      DownloadTasks.complete(context, taskId)
+      if (!session.hidden) DownloadTasks.complete(context, taskId)
       publish(
         taskId,
         DownloadState.Completed(
@@ -646,12 +721,12 @@ object DownloadManager {
 
     } catch (e: CancellationException) {
       Log.i(TAG, "canceled: $taskId")
-      DownloadTasks.cancel(context, taskId)
+      if (!session.hidden) DownloadTasks.cancel(context, taskId)
       publish(taskId, DownloadState.Canceled)
       throw e
     } catch (e: YoutubeDL.CanceledException) {
       Log.i(TAG, "canceled: $taskId")
-      DownloadTasks.cancel(context, taskId)
+      if (!session.hidden) DownloadTasks.cancel(context, taskId)
       publish(taskId, DownloadState.Canceled)
     } catch (e: Exception) {
       Log.e(TAG, "failed: $taskId", e)
@@ -663,7 +738,7 @@ object DownloadManager {
         )
       }
       val message = DownloadErrors.forUrl(context, url, rawError)
-      DownloadTasks.fail(context, taskId, message)
+      if (!session.hidden) DownloadTasks.fail(context, taskId, message)
       publish(taskId, DownloadState.Failed(message))
     } finally {
       session.pid = null
@@ -680,6 +755,165 @@ object DownloadManager {
     DownloadStorage.tempDir(context, taskId).listFiles()?.any {
       it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
     } == true
+
+  /** id серии плейлиста: отдельный процесс, отдельный кэш, отдельная отмена. */
+  private fun childId(parentId: String, index: Int): String = "$parentId#$index"
+
+  /**
+   * Плейлист параллельно: каждая серия — отдельный процесс yt-dlp и отдельный слот.
+   * Лимит берётся из настроек, поэтому одновременно идёт не больше N серий.
+   */
+  private suspend fun runPlaylist(context: Context, parent: Session, entries: List<PlaylistEntry>) {
+    val taskId = parent.id
+    val total = entries.size
+    Log.i(TAG, "playlist run: task=$taskId, series=$total, folder=${parent.folder}")
+    DownloadStorage.clearTemp(context, taskId)
+    publishPlaylist(context, parent, entries, "")
+    try {
+      coroutineScope {
+        val jobs =
+          entries.mapIndexed { index, entry ->
+            val child =
+              Session(
+                id = childId(taskId, index),
+                url = entry.url,
+                formatId = parent.formatId,
+                mergeFormat = parent.mergeFormat,
+                title = entry.title,
+                playlistTitle = parent.playlistTitle,
+                isPlaylist = false,
+                playlistCount = 0,
+                thumbnail = parent.thumbnail,
+                durationSeconds = parent.durationSeconds,
+                playlistFolder = parent.folder,
+                hidden = true,
+                parentId = taskId,
+              )
+            sessions[child.id] = child
+            parent.children += child.id
+            launch {
+              acquireSlot()
+              try {
+                run(context, child)
+              } finally {
+                releaseSlot()
+              }
+            }
+          }
+        // Пока серии качаются, обновляем общую карточку плейлиста.
+        while (jobs.any { it.isActive }) {
+          publishPlaylist(context, parent, entries, "")
+          delay(PROGRESS_TICK_MS)
+        }
+      }
+
+      // Итог: сколько серий сохранилось и что показать при открытии.
+      var saved = 0
+      var first: DownloadState.Completed? = null
+      var lastError = ""
+      parent.children.forEach { id ->
+        when (val state = parent.childStates[id]) {
+          is DownloadState.Completed -> {
+            saved++
+            if (first == null) first = state
+          }
+          is DownloadState.Failed -> if (lastError.isBlank()) lastError = state.message
+          else -> Unit
+        }
+      }
+
+      if (saved == 0) {
+        val message = lastError.ifBlank { context.getString(R.string.error_no_file_path) }
+        DownloadTasks.fail(context, taskId, message)
+        publish(taskId, DownloadState.Failed(message))
+        return
+      }
+
+      val folder = DownloadStorage.sanitizeDir(parent.folder)
+      Log.i(TAG, "playlist done: task=$taskId, files=$saved/$total")
+      DownloadTasks.complete(context, taskId)
+      publish(
+        taskId,
+        DownloadState.Completed(
+          title = parent.folder,
+          filePath =
+            context.getString(
+              R.string.download_playlist_saved,
+              "${DownloadStorage.destination.value.label}/$folder",
+              saved,
+            ),
+          uri = first?.uri.orEmpty(),
+          mimeType = first?.mimeType.orEmpty(),
+          isPlaylist = true,
+        ),
+      )
+    } catch (e: CancellationException) {
+      Log.i(TAG, "playlist canceled: $taskId")
+      DownloadTasks.cancel(context, taskId)
+      publish(taskId, DownloadState.Canceled)
+      throw e
+    } catch (e: Exception) {
+      Log.e(TAG, "playlist failed: $taskId", e)
+      val message = DownloadErrors.forUrl(context, parent.url, e.message.orEmpty())
+      DownloadTasks.fail(context, taskId, message)
+      publish(taskId, DownloadState.Failed(message))
+    } finally {
+      parent.children.forEach { sessions.remove(it) }
+      parent.childStates.clear()
+      runCatching { DownloadStorage.clearTemp(context, taskId) }
+    }
+  }
+
+  /**
+   * Общая карточка плейлиста: процент — среднее по сериям, детали — в `playlistItems`.
+   * Так полоса не прыгает, а в «шторке» видно каждую серию отдельно.
+   */
+  private fun publishPlaylist(
+    context: Context,
+    parent: Session,
+    entries: List<PlaylistEntry>,
+    line: String,
+  ) {
+    val items =
+      entries.mapIndexed { index, entry ->
+        val state = parent.childStates[childId(parent.id, index)]
+        val percent =
+          when (state) {
+            is DownloadState.Running -> (state.percent * 100).toInt().coerceIn(0, 100)
+            is DownloadState.Completed -> 100
+            else -> 0
+          }
+        PlaylistItemProgress(
+          index = index + 1,
+          title = entry.title,
+          percent = percent,
+          done = state is DownloadState.Completed,
+          failed = state is DownloadState.Failed || state is DownloadState.Canceled,
+        )
+      }
+    val overall =
+      if (items.isEmpty()) {
+        0
+      } else {
+        ((items.sumOf { it.percent }.toFloat() / items.size) + 0.5f).toInt().coerceIn(0, 100)
+      }
+    val active = parent.children.count { parent.childStates[it] is DownloadState.Running }
+    DownloadTasks.progress(parent.id, overall)
+    publish(
+      parent.id,
+      DownloadState.Running(
+        percent = overall / 100f,
+        etaSeconds = null,
+        line = line.ifBlank { context.getString(R.string.playlist_parallel_running, active, items.size) },
+        title = parent.title,
+        isPlaylist = true,
+        playlistItems = items,
+        itemCount = items.size,
+        playlistTitle = parent.folder,
+        parallel = true,
+      ),
+    )
+  }
 
   /** Конвертация: аудио через `-x --audio-format`, видео через `--merge-output-format`. */
   private fun YoutubeDLRequest.applyConversion(mergeFormat: String?) {

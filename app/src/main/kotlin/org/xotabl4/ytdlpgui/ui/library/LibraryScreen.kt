@@ -364,6 +364,8 @@ private fun RunningCard(download: RunningDownload, onCancel: () -> Unit, onShowS
           Text(
             text =
               when {
+                download.parallel ->
+                  stringResource(R.string.playlist_done_of, items.count { it.done }, total)
                 index != null && total > 0 -> stringResource(R.string.playlist_series_of, index, total)
                 index != null -> stringResource(R.string.playlist_item_number, index)
                 total > 0 -> stringResource(R.string.playlist_preparing, total)
@@ -465,13 +467,24 @@ private fun SeriesRow(item: PlaylistItemProgress) {
         overflow = TextOverflow.Ellipsis,
       )
       Spacer(modifier = Modifier.height(4.dp))
-      SeriesBar(progress = item.percent / 100f, done = item.done)
+      SeriesBar(progress = item.percent / 100f, done = item.done, failed = item.failed)
     }
     Spacer(modifier = Modifier.width(10.dp))
     Text(
-      text = if (item.done) "✓" else if (item.percent > 0) "${item.percent}%" else "",
+      text =
+        when {
+          item.done -> "✓"
+          item.failed -> "!"
+          item.percent > 0 -> "${item.percent}%"
+          else -> ""
+        },
       style = MaterialTheme.typography.labelSmall,
-      color = if (item.done) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+      color =
+        when {
+          item.done -> SuccessGreen
+          item.failed -> MaterialTheme.colorScheme.error
+          else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
       textAlign = TextAlign.End,
       modifier = Modifier.width(36.dp),
     )
@@ -480,7 +493,7 @@ private fun SeriesRow(item: PlaylistItemProgress) {
 
 /** Маленькая полоска серии: та же зелёная заливка, что у большой плашки. */
 @Composable
-private fun SeriesBar(progress: Float, done: Boolean) {
+private fun SeriesBar(progress: Float, done: Boolean, failed: Boolean = false) {
   val fraction = progress.coerceIn(0f, 1f)
   Box(
     modifier =
@@ -494,10 +507,17 @@ private fun SeriesBar(progress: Float, done: Boolean) {
         Modifier.fillMaxWidth(fraction)
           .fillMaxHeight()
           .background(
-            if (done) {
-              Brush.linearGradient(listOf(SuccessGreen.copy(alpha = 0.7f), SuccessGreen))
-            } else {
-              Brush.linearGradient(listOf(Emerald.copy(alpha = 0.45f), Emerald.copy(alpha = 0.95f)))
+            when {
+              failed ->
+                Brush.linearGradient(
+                  listOf(
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                    MaterialTheme.colorScheme.error,
+                  )
+                )
+              done -> Brush.linearGradient(listOf(SuccessGreen.copy(alpha = 0.7f), SuccessGreen))
+              else ->
+                Brush.linearGradient(listOf(Emerald.copy(alpha = 0.45f), Emerald.copy(alpha = 0.95f)))
             }
           )
     )
