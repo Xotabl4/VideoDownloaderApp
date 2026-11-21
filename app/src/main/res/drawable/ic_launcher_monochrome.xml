@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Monochrome-слой (тематические иконки Android 13+): стрелка скачивания. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M47,28h14v26h-14z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M33,52h42L54,80z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M36,86h36a4.5,4.5 0 0,0 0,-9h-36a4.5,4.5 0 0,0 0,9z" />
+</vector>

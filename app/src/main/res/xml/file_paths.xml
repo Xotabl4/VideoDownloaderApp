@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Нужно только на Android 7–9: файл кладём в публичные «Загрузки» и отдаём через FileProvider. -->
+    <external-path name="downloads" path="Download/" />
+    <!-- Отчёты о падениях (filesDir/crash) — отправка через «Поделиться». -->
+    <files-path name="crash" path="crash/" />
+</paths>

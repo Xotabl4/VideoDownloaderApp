@@ -1,0 +1,31 @@
+# Gradle и артефакты сборки
+.gradle/
+**/build/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Локальные настройки SDK
+local.properties
+
+# IDE и система
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Ключи и пароли: в репозиторий не попадают
+keys/
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+
+# Кеш вспомогательных скриптов
+tools/.cache/
+
+# Сгенерированные профили
+app/src/release/generated/
