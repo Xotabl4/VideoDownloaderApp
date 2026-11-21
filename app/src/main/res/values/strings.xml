@@ -210,7 +210,7 @@
     <string name="error_vk_blocked">VK ограничил доступ к этому плейлисту (блокировка Роскомнадзора). Включите VPN и повторите.</string>
     <string name="error_vk_login">Этот плейлист VK виден только после входа в аккаунт — скачать его нельзя.</string>
     <string name="error_vk_playlist">VK не отдал список видео плейлиста: он закрыт, удалён или доступ ограничен. Проверьте ссылку или включите VPN.</string>
-    <string name="error_vk_channel">VK открывает канал только после входа в аккаунт. Анонимно скачать его видео нельзя.</string>
+    <string name="error_vk_channel">Канал целиком не скачиваем — вставьте ссылку на отдельное видео или на плейлист канала.</string>
     <string name="vk_playlist_folder">VK плейлист %1$s</string>
     <string name="vk_playlist_folder_owner">%1$s — VK плейлист %2$s</string>
     <string name="ph_harvest_title">PornHub: получаю поток…</string>

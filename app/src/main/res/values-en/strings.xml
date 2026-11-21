@@ -202,7 +202,7 @@
     <string name="error_vk_blocked">VK restricted access to this playlist (blocked by the Russian regulator). Enable VPN and retry.</string>
     <string name="error_vk_login">This VK playlist is visible only after signing in — it cannot be downloaded.</string>
     <string name="error_vk_playlist">VK did not return the playlist video list: it is closed, removed or restricted. Check the link or enable VPN.</string>
-    <string name="error_vk_channel">VK opens a channel only after sign-in. Its videos cannot be downloaded anonymously.</string>
+    <string name="error_vk_channel">We do not download a whole channel — paste a link to a single video or a channel playlist.</string>
     <string name="vk_playlist_folder">VK playlist %1$s</string>
     <string name="vk_playlist_folder_owner">%1$s — VK playlist %2$s</string>
     <string name="ph_harvest_title">PornHub: fetching stream…</string>

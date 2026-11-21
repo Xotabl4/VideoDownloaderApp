@@ -365,25 +365,8 @@ object DownloadManager {
           url
         }
 
-      // Канал VK: видео перечислены нами, yt-dlp получает их списком из файла.
-      val vkEntries =
-        if (isPlaylist && VkChannel.matches(url)) {
-          VkChannel.cachedEntries(url).ifEmpty {
-            (VkChannel.resolve(context, url) as? VkChannel.Result.Ok)?.info?.entries.orEmpty()
-          }
-        } else {
-          emptyList()
-        }
-      val batchFile =
-        if (vkEntries.isNotEmpty()) {
-          File(dir, "entries.txt").apply { writeText(vkEntries.joinToString("\n")) }
-        } else {
-          null
-        }
-
       val request =
-        YoutubeDLRequest(if (batchFile != null) emptyList<String>() else listOf(effectiveUrl)).apply {
-          if (batchFile != null) addOption("--batch-file", batchFile.absolutePath)
+        YoutubeDLRequest(listOf(effectiveUrl)).apply {
           // Impersonation: тот же отпечаток, что при разборе ссылки.
           if (CurlImpersonate.wantedFor(url) && CurlImpersonate.ensure(context)) {
             addOption("--impersonate", "chrome")

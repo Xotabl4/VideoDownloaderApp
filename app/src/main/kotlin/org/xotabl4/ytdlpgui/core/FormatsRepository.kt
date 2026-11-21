@@ -73,39 +73,10 @@ object FormatsRepository {
         )
       }
 
-      // Канал VK: yt-dlp не разбирает страницу `@name` («Unable to extract cursor data»),
-      // поэтому список видео и название берём сами, а форматы — у первого ролика.
+      // Канал VK целиком не качаем: VK не отдаёт его анонимно, и это сотни роликов.
+      // Пользователь должен дать ссылку на отдельное видео или плейлист канала.
       if (VkChannel.matches(url)) {
-        when (val vk = VkChannel.resolve(context, url, limit = 20)) {
-          is VkChannel.Result.Ok -> {
-            val info = vk.info
-            val first =
-              info.entries.firstOrNull()
-                ?: throw IllegalStateException(context.getString(R.string.error_vk_playlist))
-            val single = fetchSingle(context, first)
-            val formats =
-              FormatsParser.build(
-                title = info.title,
-                raw = single.formats,
-                thumbnail = single.thumbnail,
-                durationSeconds = single.durationSeconds,
-                playlistTitle = info.title,
-                playlistCount = info.total,
-                isPlaylist = true,
-              )
-            Log.i(
-              TAG,
-              "vk channel '${info.title}': total=${info.total}, entries=${info.entries.size}, " +
-                "formats=${single.formats.size}",
-            )
-            return@withContext formats
-          }
-          VkChannel.Result.Blocked ->
-            throw IllegalStateException(context.getString(R.string.error_vk_blocked))
-          VkChannel.Result.LoginRequired ->
-            throw IllegalStateException(context.getString(R.string.error_vk_channel))
-          VkChannel.Result.Unknown -> Unit
-        }
+        throw IllegalStateException(context.getString(R.string.error_vk_channel))
       }
 
       // Диагностика impersonation доступна отдельно (CurlImpersonate.probe), в рабочем пути не нужна.
