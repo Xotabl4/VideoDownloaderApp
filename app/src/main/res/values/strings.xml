@@ -189,6 +189,14 @@
     <string name="notif_title_fallback">Загрузка видео</string>
     <string name="notif_progress">%1$d%% · осталось %2$s</string>
     <string name="notif_progress_short">%1$d%%</string>
+    <string name="notif_playlist_progress">Серия %1$d из %2$d · %3$d%%</string>
+    <string name="playlist_series_of">Серия %1$d из %2$d</string>
+    <string name="playlist_item_number">Серия %1$d</string>
+    <string name="playlist_preparing">Плейлист · серий: %1$d</string>
+    <string name="playlist_show_series">Серии (%1$d)</string>
+    <string name="playlist_show_series_unknown">Серии</string>
+    <string name="playlist_sheet_title">Серии плейлиста</string>
+    <string name="playlist_sheet_summary">Готово %1$d из %2$d · общий прогресс %3$d%%</string>
     <string name="task_canceled">Загрузка отменена</string>
     <string name="task_failed">Загрузка не удалась</string>
     <string name="task_interrupted">Загрузка прервана</string>

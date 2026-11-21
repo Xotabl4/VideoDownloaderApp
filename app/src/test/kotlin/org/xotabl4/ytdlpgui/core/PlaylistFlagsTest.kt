@@ -58,12 +58,14 @@ class PlaylistFlagsTest {
         updatedAt = 1_700_000_000_000,
         isPlaylist = true,
         playlistTitle = "Киноканал FAN — VK плейлист 2",
+        playlistCount = 12,
       )
 
     val decoded = DownloadTasks.decode(DownloadTasks.encode(listOf(task))).single()
     assertEquals(task, decoded)
     assertTrue(decoded.isPlaylist)
     assertEquals("Киноканал FAN — VK плейлист 2", decoded.playlistTitle)
+    assertEquals(12, decoded.playlistCount)
   }
 
   @Test

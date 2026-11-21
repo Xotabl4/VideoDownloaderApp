@@ -39,6 +39,8 @@ data class DownloadTask(
   val isPlaylist: Boolean = false,
   /** Название подпапки плейлиста (для повтора). */
   val playlistTitle: String = "",
+  /** Сколько серий было в плейлисте (для «шторки» после повтора). */
+  val playlistCount: Int = 0,
 )
 
 /** Незавершённые загрузки: идущие, отменённые и упавшие. */
@@ -132,6 +134,7 @@ object DownloadTasks {
           task.message,
           if (task.isPlaylist) "1" else "0",
           task.playlistTitle,
+          task.playlistCount.toString(),
         )
         .joinToString("\t") { escape(it) }
     }
@@ -156,6 +159,7 @@ object DownloadTasks {
           message = parts.getOrNull(10).orEmpty(),
           isPlaylist = parts.getOrNull(11) == "1",
           playlistTitle = parts.getOrNull(12).orEmpty(),
+          playlistCount = parts.getOrNull(13)?.toIntOrNull() ?: 0,
         )
       }
       .toList()

@@ -139,10 +139,28 @@ class DownloadService : Service() {
     when (state) {
       is DownloadState.Running -> {
         percent = (state.percent * 100).toInt().coerceIn(0, 100)
-        title = state.title.ifBlank { getString(R.string.notif_title_fallback) }
+        val episode = state.itemIndex
+        title =
+          if (state.isPlaylist) {
+            state.playlistTitle.ifBlank {
+              state.title.ifBlank { getString(R.string.notif_title_fallback) }
+            }
+          } else {
+            state.title.ifBlank { getString(R.string.notif_title_fallback) }
+          }
         status =
-          state.etaSeconds?.let { getString(R.string.notif_progress, percent, formatEta(it)) }
-            ?: state.line.take(70)
+          when {
+            // Плейлист: в уведомлении видно, какая серия идёт и сколько готово в целом.
+            state.isPlaylist && episode != null ->
+              getString(
+                R.string.notif_playlist_progress,
+                episode,
+                state.itemCount.coerceAtLeast(episode),
+                percent,
+              )
+            state.etaSeconds != null -> getString(R.string.notif_progress, percent, formatEta(state.etaSeconds))
+            else -> state.line.take(70)
+          }
       }
       is DownloadState.Completed -> {
         percent = 100

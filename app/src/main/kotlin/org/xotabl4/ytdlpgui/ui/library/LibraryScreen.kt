@@ -9,18 +9,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,10 +62,13 @@ import org.xotabl4.ytdlpgui.core.DownloadTask
 import org.xotabl4.ytdlpgui.core.DownloadTasks
 import org.xotabl4.ytdlpgui.core.FormatsParser
 import org.xotabl4.ytdlpgui.core.HistoryEntry
+import org.xotabl4.ytdlpgui.core.PlaylistItemProgress
+import org.xotabl4.ytdlpgui.core.RunningDownload
 import org.xotabl4.ytdlpgui.core.TaskStatus
 import org.xotabl4.ytdlpgui.core.ThumbnailCache
 import org.xotabl4.ytdlpgui.ui.DownloadPlate
 import org.xotabl4.ytdlpgui.ui.rememberNotificationPermissionRequester
+import org.xotabl4.ytdlpgui.ui.theme.Emerald
 import org.xotabl4.ytdlpgui.ui.theme.SuccessGreen
 
 /** Табы библиотеки. */
@@ -84,6 +93,8 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
   var pendingTaskDelete by remember { mutableStateOf<DownloadTask?>(null) }
   var clearRequested by remember { mutableStateOf(false) }
   var clearTasksRequested by remember { mutableStateOf(false) }
+  // Задача, для которой открыта «шторка» с сериями плейлиста.
+  var sheetTaskId by rememberSaveable { mutableStateOf<String?>(null) }
 
   // Отменённые и упавшие загрузки остаются в списке; идущие показываем отдельными карточками
   // (их может быть несколько — параллельные загрузки).
@@ -135,10 +146,9 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
           runningDownloads.forEach { download ->
             item(key = "running-${download.taskId}") {
               RunningCard(
-                title = download.title,
-                progress = download.percent / 100f,
-                line = download.line,
+                download = download,
                 onCancel = { DownloadManager.cancel(download.taskId) },
+                onShowSeries = { sheetTaskId = download.taskId },
               )
             }
           }
@@ -272,6 +282,12 @@ fun LibraryScreen(modifier: Modifier = Modifier) {
       },
     )
   }
+
+  // «Шторка» с сериями плейлиста: показываем, пока задача качается.
+  val sheetDownload = sheetTaskId?.let { id -> runningDownloads.firstOrNull { it.taskId == id } }
+  if (sheetDownload != null) {
+    PlaylistSheet(download = sheetDownload, onDismiss = { sheetTaskId = null })
+  }
 }
 
 /** Табы библиотеки: подпись и подчёркивание у выбранного. */
@@ -315,20 +331,76 @@ private fun LibraryTabs(current: LibraryTab, counts: Map<LibraryTab, Int>, onSel
   Spacer(modifier = Modifier.height(10.dp))
 }
 
-/** Карточка активной загрузки: «плашка» с прогрессом (стиль RimWorld-мода) + отмена. */
+/**
+ * Карточка активной загрузки: «плашка» с прогрессом (стиль RimWorld-мода) + отмена.
+ *
+ * У плейлиста плашка показывает общий прогресс по всем сериям, ниже — какая серия идёт,
+ * и кнопка «Серии», открывающая «шторку» с полосками каждой серии.
+ */
 @Composable
-private fun RunningCard(title: String, progress: Float, line: String, onCancel: () -> Unit) {
+private fun RunningCard(download: RunningDownload, onCancel: () -> Unit, onShowSeries: () -> Unit) {
+  val progress = download.percent / 100f
+  val items = download.playlistItems
+  val total = download.itemCount.coerceAtLeast(items.size)
+  val isPlaylist = download.isPlaylist && (items.isNotEmpty() || total > 1)
+  val current = items.firstOrNull { it.index == download.itemIndex }
+
   Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
     Column(modifier = Modifier.padding(12.dp)) {
       DownloadPlate(
-        title = title.ifBlank { stringResource(R.string.notif_title_fallback) },
+        title =
+          if (isPlaylist) {
+            download.playlistTitle.ifBlank { stringResource(R.string.notif_title_fallback) }
+          } else {
+            download.title.ifBlank { stringResource(R.string.notif_title_fallback) }
+          },
         progress = progress,
-        trailing = "${(progress * 100).toInt().coerceIn(0, 100)}%",
+        trailing = "${download.percent}%",
       )
-      Spacer(modifier = Modifier.height(6.dp))
+      if (isPlaylist) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          val index = download.itemIndex
+          Text(
+            text =
+              when {
+                index != null && total > 0 -> stringResource(R.string.playlist_series_of, index, total)
+                index != null -> stringResource(R.string.playlist_item_number, index)
+                total > 0 -> stringResource(R.string.playlist_preparing, total)
+                else -> stringResource(R.string.playlist_show_series_unknown)
+              },
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = SuccessGreen,
+          )
+          val currentTitle = current?.title.orEmpty()
+          Text(
+            text = if (currentTitle.isBlank()) "" else " · $currentTitle",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+          )
+          TextButton(
+            onClick = onShowSeries,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+          ) {
+            Text(
+              text =
+                if (total > 0) {
+                  stringResource(R.string.playlist_show_series, total)
+                } else {
+                  stringResource(R.string.playlist_show_series_unknown)
+                },
+              style = MaterialTheme.typography.labelMedium,
+            )
+          }
+        }
+      }
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-          text = line.take(60),
+          text = download.line.take(60),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 1,
@@ -340,6 +412,99 @@ private fun RunningCard(title: String, progress: Float, line: String, onCancel: 
     }
   }
 }
+
+/** «Шторка» с сериями плейлиста: номер, название и полоска каждой серии. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaylistSheet(download: RunningDownload, onDismiss: () -> Unit) {
+  val items = download.playlistItems
+  val total = download.itemCount.coerceAtLeast(items.size)
+  val done = items.count { it.done }
+  ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+      Text(
+        text = download.playlistTitle.ifBlank { stringResource(R.string.playlist_sheet_title) },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(
+        text = stringResource(R.string.playlist_sheet_summary, done, total, download.percent),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      LazyColumn(
+        modifier = Modifier.heightIn(max = 420.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        items(items, key = { it.index }) { item -> SeriesRow(item) }
+      }
+    }
+  }
+}
+
+/** Строка серии в «шторке»: номер, название, полоска и процент. */
+@Composable
+private fun SeriesRow(item: PlaylistItemProgress) {
+  Row(verticalAlignment = Alignment.CenterVertically) {
+    Text(
+      text = if (item.index < 10) "0${item.index}" else "${item.index}",
+      style = MaterialTheme.typography.labelMedium,
+      fontWeight = FontWeight.SemiBold,
+      color = if (item.done) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.width(26.dp),
+    )
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = item.title.ifBlank { stringResource(R.string.playlist_item_number, item.index) },
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+      SeriesBar(progress = item.percent / 100f, done = item.done)
+    }
+    Spacer(modifier = Modifier.width(10.dp))
+    Text(
+      text = if (item.done) "✓" else if (item.percent > 0) "${item.percent}%" else "",
+      style = MaterialTheme.typography.labelSmall,
+      color = if (item.done) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.End,
+      modifier = Modifier.width(36.dp),
+    )
+  }
+}
+
+/** Маленькая полоска серии: та же зелёная заливка, что у большой плашки. */
+@Composable
+private fun SeriesBar(progress: Float, done: Boolean) {
+  val fraction = progress.coerceIn(0f, 1f)
+  Box(
+    modifier =
+      Modifier.fillMaxWidth()
+        .height(6.dp)
+        .clip(RoundedCornerShape(3.dp))
+        .background(MaterialTheme.colorScheme.surfaceVariant)
+  ) {
+    Box(
+      modifier =
+        Modifier.fillMaxWidth(fraction)
+          .fillMaxHeight()
+          .background(
+            if (done) {
+              Brush.linearGradient(listOf(SuccessGreen.copy(alpha = 0.7f), SuccessGreen))
+            } else {
+              Brush.linearGradient(listOf(Emerald.copy(alpha = 0.45f), Emerald.copy(alpha = 0.95f)))
+            }
+          )
+    )
+  }
+}
+
+
 
 /** Карточка незавершённой загрузки: отменённая или упавшая — остаётся в списке. */
 @Composable
@@ -534,6 +699,7 @@ private object LibraryActions {
       title = task.title,
       playlistTitle = task.playlistTitle,
       isPlaylist = task.isPlaylist,
+      playlistCount = task.playlistCount,
     )
   }
 }

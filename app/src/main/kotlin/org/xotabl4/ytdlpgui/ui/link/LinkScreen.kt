@@ -199,6 +199,7 @@ fun LinkScreen(
                 title = current.formats.title,
                 playlistTitle = current.formats.playlistTitle,
                 isPlaylist = current.formats.isPlaylist,
+                playlistCount = current.formats.playlistCount,
               )
             }
           },

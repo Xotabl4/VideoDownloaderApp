@@ -183,6 +183,14 @@
     <string name="notif_title_fallback">Downloading video</string>
     <string name="notif_progress">%1$d%% · %2$s left</string>
     <string name="notif_progress_short">%1$d%%</string>
+    <string name="notif_playlist_progress">Episode %1$d of %2$d · %3$d%%</string>
+    <string name="playlist_series_of">Episode %1$d of %2$d</string>
+    <string name="playlist_item_number">Episode %1$d</string>
+    <string name="playlist_preparing">Playlist · %1$d episodes</string>
+    <string name="playlist_show_series">Episodes (%1$d)</string>
+    <string name="playlist_show_series_unknown">Episodes</string>
+    <string name="playlist_sheet_title">Playlist episodes</string>
+    <string name="playlist_sheet_summary">%1$d of %2$d done · overall %3$d%%</string>
     <string name="task_canceled">Download canceled</string>
     <string name="task_failed">Download failed</string>
     <string name="task_interrupted">Download interrupted</string>

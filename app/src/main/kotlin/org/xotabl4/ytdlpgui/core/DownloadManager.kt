@@ -53,6 +53,16 @@ sealed interface DownloadState {
     val line: String,
     /** Название ролика для уведомления. */
     val title: String = "",
+    /** Это плейлист: серии качаются по очереди, прогресс по каждой — в [playlistItems]. */
+    val isPlaylist: Boolean = false,
+    /** Прогресс серий плейлиста; для одиночного видео пусто. */
+    val playlistItems: List<PlaylistItemProgress> = emptyList(),
+    /** Номер серии, которая качается сейчас. */
+    val itemIndex: Int? = null,
+    /** Сколько серий в плейлисте; 0 — неизвестно. */
+    val itemCount: Int = 0,
+    /** Название плейлиста (подпись «шторки»). */
+    val playlistTitle: String = "",
   ) : DownloadState
 
   data class Completed(
@@ -73,9 +83,19 @@ sealed interface DownloadState {
 data class RunningDownload(
   val taskId: String,
   val title: String,
-  /** Прогресс в процентах. */
+  /** Общий прогресс в процентах (для плейлиста — среднее по сериям). */
   val percent: Int,
   val line: String,
+  /** Это плейлист: в карточке показываем серии. */
+  val isPlaylist: Boolean = false,
+  /** Прогресс серий для «шторки». */
+  val playlistItems: List<PlaylistItemProgress> = emptyList(),
+  /** Номер текущей серии. */
+  val itemIndex: Int? = null,
+  /** Всего серий; 0 — неизвестно. */
+  val itemCount: Int = 0,
+  /** Название плейлиста. */
+  val playlistTitle: String = "",
 )
 
 /** Данные одной загрузки. */
@@ -87,6 +107,8 @@ private class Session(
   val title: String,
   val playlistTitle: String,
   val isPlaylist: Boolean,
+  /** Сколько серий ожидается (из метаданных плейлиста); 0 — узнаем из вывода yt-dlp. */
+  val playlistCount: Int,
   val thumbnail: String,
   val durationSeconds: Long,
 ) {
@@ -141,6 +163,7 @@ object DownloadManager {
   private var lastRequest: Triple<String, String, String?>? = null
   private var lastTitle: String = ""
   private var lastPlaylistTitle: String = ""
+  private var lastPlaylistCount: Int = 0
   private var lastIsPlaylist: Boolean = false
 
   /** Идёт хотя бы одна загрузка. */
@@ -166,6 +189,8 @@ object DownloadManager {
      * поэтому нужен отдельный флаг.
      */
     isPlaylist: Boolean = false,
+    /** Сколько серий в плейлисте (если известно из метаданных). */
+    playlistCount: Int = 0,
   ): String? {
     val appContext = context.applicationContext
     if (mergeFormat != null && mergeFormat != NO_CONVERSION && !ffmpegReady()) {
@@ -175,6 +200,7 @@ object DownloadManager {
     lastRequest = Triple(url, formatId, mergeFormat)
     lastTitle = title
     lastPlaylistTitle = playlistTitle
+    lastPlaylistCount = playlistCount
     lastIsPlaylist = isPlaylist || playlistTitle.isNotBlank()
 
     val taskId = UUID.randomUUID().toString()
@@ -187,6 +213,7 @@ object DownloadManager {
         title = title,
         playlistTitle = playlistTitle,
         isPlaylist = lastIsPlaylist,
+        playlistCount = playlistCount,
         thumbnail = thumbnail,
         durationSeconds = durationSeconds,
       )
@@ -211,6 +238,7 @@ object DownloadManager {
         updatedAt = System.currentTimeMillis(),
         isPlaylist = session.isPlaylist,
         playlistTitle = playlistTitle,
+        playlistCount = session.playlistCount,
       ),
     )
 
@@ -223,6 +251,9 @@ object DownloadManager {
         etaSeconds = null,
         line = appContext.getString(if (queued) R.string.download_queued else R.string.download_preparing),
         title = title,
+        isPlaylist = session.isPlaylist,
+        itemCount = session.playlistCount,
+        playlistTitle = if (session.isPlaylist) session.folder else "",
       ),
     )
 
@@ -293,6 +324,11 @@ object DownloadManager {
             title = running.title,
             percent = (running.percent * 100).toInt().coerceIn(0, 100),
             line = running.line,
+            isPlaylist = running.isPlaylist,
+            playlistItems = running.playlistItems,
+            itemIndex = running.itemIndex,
+            itemCount = running.itemCount,
+            playlistTitle = running.playlistTitle,
           )
         }
       }
@@ -322,6 +358,7 @@ object DownloadManager {
       title = lastTitle,
       playlistTitle = lastPlaylistTitle,
       isPlaylist = lastIsPlaylist,
+      playlistCount = lastPlaylistCount,
     )
   }
 
@@ -343,10 +380,27 @@ object DownloadManager {
     // Перед плейлистом чистим папку: из неё берутся готовые файлы.
     if (isPlaylist) DownloadStorage.clearTemp(context, taskId)
 
+    // Прогресс серий: yt-dlp сообщает номер серии и процент именно по ней.
+    val playlist = if (isPlaylist) PlaylistProgress(session.playlistCount) else null
+
+    /** Состояние загрузки вместе с прогрессом серий — его показывает «шторка» в «Загрузках». */
+    fun runningState(value: Float, eta: Long?, text: String): DownloadState.Running =
+      DownloadState.Running(
+        percent = value.coerceIn(0f, 1f),
+        etaSeconds = eta,
+        line = text,
+        title = title,
+        isPlaylist = isPlaylist,
+        playlistItems = playlist?.snapshot().orEmpty(),
+        itemIndex = playlist?.currentIndex(),
+        itemCount = playlist?.totalCount() ?: 0,
+        playlistTitle = if (isPlaylist) playlistFolder else "",
+      )
+
     val pid = UUID.randomUUID().toString()
     session.pid = pid
     Log.i(TAG, "run: task=$taskId, format=$formatId, dir=$dir, pid=$pid")
-    publish(taskId, DownloadState.Running(0f, null, context.getString(R.string.download_preparing), title))
+    publish(taskId, runningState(0f, null, context.getString(R.string.download_preparing)))
 
     // Канал закрываем в любом случае, иначе корутина-публикатор останется висеть.
     val publishQueue = Channel<String>(Channel.UNLIMITED)
@@ -404,8 +458,9 @@ object DownloadManager {
           // Путь печатаем в stdout. --print включает --quiet и глушит прогресс,
           // поэтому ниже возвращаем вывод обратно.
           if (isPlaylist) {
-            // Для плейлиста печатаем «название<TAB>путь».
-            addOption("--print", "after_move:%(playlist_title|)s\t%(filepath)s")
+            // Для плейлиста печатаем «номер серии<TAB>путь» и «номер<TAB>название».
+            addOption("--print", PlaylistOutput.FILE_TEMPLATE)
+            addOption("--print", PlaylistOutput.ITEM_TEMPLATE)
             // Один битый ролик не должен обрывать плейлист.
             addOption("--ignore-errors")
             // Не ждём разбора всех страниц плейлиста.
@@ -476,24 +531,23 @@ object DownloadManager {
         attempt++
         try {
           response = YoutubeDL.getInstance().execute(request, pid) { libPercent, libEta, line ->
+            // Строки о сериях плейлиста копим отдельно: из них складывается «шторка».
+            playlist?.onLine(line)
             // Колбэк не всегда отдаёт процент, тогда считаем сами по строке.
-            val percent = libPercent.takeIf { it > 0f }?.div(100f) ?: parsePercent(line) ?: 0f
+            val percent =
+              playlist?.takeIf { it.hasData() }?.let { it.overallPercent() / 100f }
+                ?: libPercent.takeIf { it > 0f }?.div(100f)
+                ?: parsePercent(line)
+                ?: 0f
             val eta = libEta.takeIf { it > 0 } ?: parseEtaSeconds(line)
             DownloadTasks.progress(taskId, (percent * 100).toInt())
-            publish(
-              taskId,
-              DownloadState.Running(
-                percent = percent.coerceIn(0f, 1f),
-                etaSeconds = eta,
-                line = line.trim(),
-                title = title,
-              ),
-            )
+            publish(taskId, runningState(percent, eta, line.trim()))
             if (isPlaylist) {
-              // `--print after_move:<плейлист>\t<путь>`: файл готов, можно публиковать.
-              val printed = line.substringAfter('\t', "").trim()
-              if (printed.startsWith("/") && File(printed).isFile && queuedPaths.add(printed)) {
-                publishQueue.trySend(printed)
+              // `--print after_move:@@file…`: файл готов, можно публиковать.
+              PlaylistOutput.parseFile(line)?.let { file ->
+                if (File(file.path).isFile && queuedPaths.add(file.path)) {
+                  publishQueue.trySend(file.path)
+                }
               }
             }
           }
@@ -509,7 +563,7 @@ object DownloadManager {
             Log.w(TAG, "retry $attempt/$TIMEOUT_RETRIES: task=$taskId, ${e.message?.take(160)}")
             publish(
               taskId,
-              DownloadState.Running(0f, null, context.getString(R.string.download_retrying), title),
+              runningState(0f, null, context.getString(R.string.download_retrying)),
             )
             delay(RETRY_DELAY_MS)
             continue
@@ -529,16 +583,15 @@ object DownloadManager {
         Log.w(TAG, "yt-dlp stderr: ${response.err.take(3000)}")
       }
 
-      // Пути готовых файлов. У плейлиста строка начинается с таба, поэтому режем её
-      // до trim(), иначе таб пропадёт вместе с путём.
+      // Пути готовых файлов. У плейлиста берём путь из служебной строки `@@file`.
       val printedPaths =
         response
           ?.out
           ?.lines()
           .orEmpty()
           .mapNotNull { raw ->
-            val path = if (isPlaylist) raw.substringAfter('\t', "").trim() else raw.trim()
-            path.takeIf { it.isNotBlank() && File(it).exists() }
+            val path = if (isPlaylist) PlaylistOutput.parseFile(raw)?.path else raw.trim()
+            path?.takeIf { it.isNotBlank() && File(it).exists() }
           }
       // Если yt-dlp не напечатал пути, берём всё из кэша задачи.
       val filePaths =
